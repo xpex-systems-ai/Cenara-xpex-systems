@@ -16,6 +16,16 @@ from loguru import logger
 
 
 OPEN_VIDEO_MODELS: dict[str, dict[str, Any]] = {
+    "cosmos3": {
+        "label": "NVIDIA Cosmos 3",
+        "hf_model": "nvidia/Cosmos-3",
+        "endpoint_env": "CENARA_COSMOS3_ENDPOINT",
+    },
+    "skyreelsv3": {
+        "label": "SkyReels V3",
+        "hf_model": "Skywork/SkyReels-V3",
+        "endpoint_env": "CENARA_SKYREELSV3_ENDPOINT",
+    },
     "wan22": {
         "label": "Wan 2.2",
         "hf_model": "Wan-AI/Wan2.2-T2V-A14B",
@@ -131,8 +141,8 @@ def generate_open_video(
 ) -> tuple[Path, str]:
     """Try open video model families in priority order and return first valid MP4."""
     output = Path(output_path)
-    preferred = str(preferred or _secret("CENARA_OPEN_VIDEO_MODEL") or "wan22").strip().lower()
-    order = [preferred] + [m for m in ("wan22", "ltx2", "mochi1", "skyreels", "hunyuan") if m != preferred]
+    preferred = str(preferred or _secret("CENARA_OPEN_VIDEO_MODEL") or "cosmos3").strip().lower()
+    order = [preferred] + [m for m in ("cosmos3", "wan22", "skyreelsv3", "ltx2", "skyreels", "mochi1", "hunyuan") if m != preferred]
     errors = []
 
     for model_id in order:
