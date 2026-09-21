@@ -79,7 +79,7 @@ def director(prompt: str, style: str, seconds: int) -> dict:
         return fallback
 
 def valid_mp4(path: Path) -> bool:
-    if not path.is_file() or path.stat().st_size < 50000:
+    if not path.is_file() or path.stat().st_size < 10_000:
         return False
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
@@ -120,96 +120,120 @@ def pollinations_image(prompt: str, target: Path, width: int, height: int, seed:
 
 
 def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: int) -> Path | None:
-    """Create a real MP4 from prompt-matched AI imagery with motion and transitions."""
+    """Create a real MP4 from prompt-matched AI imagery with a proven FFmpeg pipeline."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
+        print("CENARA_GENERATION stage=storyboard status=skip reason=ffmpeg_missing")
         return None
+
     sizes = {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)}
     w, h = sizes.get(aspect, (1280, 720))
     image_w, image_h = (1024, 576) if aspect == "16:9" else ((576, 1024) if aspect == "9:16" else (768, 768))
     shot_prompts = [
-        visual_prompt + ". Wide establishing shot, cinematic composition, premium commercial frame",
-        visual_prompt + ". Medium shot, realistic detail, elegant lighting, coherent subject continuity",
-        visual_prompt + ". Hero close-up, dramatic premium lighting, polished advertising finish",
+        visual_prompt + ". wide establishing shot, cinematic composition, premium commercial frame",
+        visual_prompt + ". medium hero shot, realistic detail, elegant lighting, coherent subject continuity",
+        visual_prompt + ". close-up premium campaign frame, dramatic polished advertising finish",
     ]
+
     images = []
     seed_base = int(time.time()) % 100000
     for idx, shot in enumerate(shot_prompts):
         target = task_dir / f"story-{idx+1}.jpg"
-        if pollinations_image(shot, target, image_w, image_h, seed_base + idx * 17):
+        ok = pollinations_image(shot, target, image_w, image_h, seed_base + idx * 19)
+        print(f"CENARA_GENERATION stage=image index={idx+1} status={'ok' if ok else 'fail'}")
+        if ok:
             images.append(target)
     if not images:
         return None
 
-    clip_seconds = max(1.6, float(seconds) / len(images))
+    clip_seconds = max(1.5, float(seconds) / len(images))
     clips = []
     for idx, image in enumerate(images):
         clip = task_dir / f"story-{idx+1}.mp4"
-        frames = max(30, int(clip_seconds * 30))
-        zoom = "min(zoom+0.0012,1.10)" if idx % 2 == 0 else "if(lte(zoom,1.0),1.08,max(1.0,zoom-0.0010))"
+        frames = max(45, int(clip_seconds * 30))
         vf = (
             f"scale={w}:{h}:force_original_aspect_ratio=increase,"
             f"crop={w}:{h},"
-            f"zoompan=z='{zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"zoompan=z='min(zoom+0.0012,1.10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
             f"d={frames}:s={w}x{h}:fps=30,"
-            "fade=t=in:st=0:d=0.35,"
-            f"fade=t=out:st={max(0.4, clip_seconds-0.4):.2f}:d=0.35,"
             "format=yuv420p"
         )
         try:
-            subprocess.run(
+            run = subprocess.run(
                 [
                     ffmpeg, "-y", "-loop", "1", "-i", str(image),
-                    "-vf", vf, "-t", f"{clip_seconds:.2f}", "-r", "30",
+                    "-vf", vf,
+                    "-t", f"{clip_seconds:.2f}", "-r", "30",
                     "-an", "-c:v", "libx264", "-preset", "veryfast",
                     "-movflags", "+faststart", str(clip),
                 ],
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180,
+                check=True, capture_output=True, text=True, timeout=180,
             )
             if valid_mp4(clip):
                 clips.append(clip)
-        except Exception:
-            continue
+                print(f"CENARA_GENERATION stage=clip index={idx+1} status=ok bytes={clip.stat().st_size}")
+            else:
+                print(f"CENARA_GENERATION stage=clip index={idx+1} status=invalid")
+        except Exception as exc:
+            detail = getattr(exc, "stderr", "") or str(exc)
+            print(f"CENARA_GENERATION stage=clip index={idx+1} status=fail detail={' '.join(detail.split())[:240]}")
+
     if not clips:
         return None
 
-    concat_file = task_dir / "storyboard.txt"
-    concat_file.write_text(
-        "".join(f"file '{str(p).replace(chr(39), '')}'\n" for p in clips),
-        encoding="utf-8",
-    )
+    listing = task_dir / "storyboard.txt"
+    listing.write_text("".join(f"file '{p}'\n" for p in clips), encoding="utf-8")
     out = task_dir / "cenara-storyboard.mp4"
     try:
         subprocess.run(
             [
-                ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+                ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listing),
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
                 "-movflags", "+faststart", str(out),
             ],
-            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=240,
+            check=True, capture_output=True, text=True, timeout=240,
         )
-        return out if valid_mp4(out) else None
-    except Exception:
+        if valid_mp4(out):
+            print(f"CENARA_GENERATION stage=storyboard status=pass bytes={out.stat().st_size}")
+            return out
+        print("CENARA_GENERATION stage=storyboard status=invalid")
+        return None
+    except Exception as exc:
+        detail = getattr(exc, "stderr", "") or str(exc)
+        print(f"CENARA_GENERATION stage=storyboard status=fail detail={' '.join(detail.split())[:300]}")
         return None
 
-
 def local_video(task_dir: Path, prompt: str, aspect: str, seconds: int) -> Path:
+    """Guaranteed local MP4 fallback with animated graphics; no external provider/font dependency."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("FFmpeg ausente")
-    sizes = {"16:9":(1280,720),"9:16":(720,1280),"1:1":(720,720)}
+    sizes = {"16:9": (1280,720), "9:16": (720,1280), "1:1": (720,720)}
     w,h = sizes.get(aspect,(1280,720))
     out = task_dir / "cenara-local.mp4"
-    safe = " ".join(prompt.split())[:70].replace("'","").replace(":"," -")
     vf = (
-        "color=c=0x06111f:s=" + str(w) + "x" + str(h) + ":d=" + str(seconds) + ","
-        "drawbox=x='mod(t*100," + str(w) + ")-220':y='h*0.12':w=300:h=110:color=0x0ea5e9@0.18:t=fill,"
-        "drawbox=x='w-mod(t*80," + str(w) + ")':y='h*0.72':w=260:h=100:color=0xff7a00@0.16:t=fill,"
-        "drawtext=text='CENARA':fontcolor=0x21d4f4:fontsize=46:x=w*0.08:y=h*0.20,"
-        "drawtext=text='" + safe + "':fontcolor=white:fontsize=34:x=w*0.08:y=h*0.43,"
+        f"color=c=0x06111f:s={w}x{h}:r=30:d={seconds},"
+        f"drawbox=x='mod(t*180,{w+360})-360':y='h*0.12':w=360:h=140:color=0x0ea5e9@0.30:t=fill,"
+        f"drawbox=x='{w}-mod(t*140,{w+320})':y='h*0.68':w=320:h=120:color=0xff7a00@0.25:t=fill,"
+        f"drawbox=x='w*0.08':y='h*0.20':w='w*0.84':h='h*0.58':color=0x020817@0.50:t=fill,"
         "format=yuv420p"
     )
-    subprocess.run([ffmpeg,"-y","-f","lavfi","-i",vf,"-t",str(seconds),"-an","-c:v","libx264","-preset","veryfast","-movflags","+faststart",str(out)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=240)
+    cmd = [
+        ffmpeg, "-y", "-f", "lavfi", "-i", vf,
+        "-t", str(seconds), "-r", "30", "-an",
+        "-c:v", "libx264", "-preset", "veryfast",
+        "-movflags", "+faststart", str(out),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=240)
+    except subprocess.CalledProcessError as exc:
+        detail = " ".join((exc.stderr or "").split())[:400]
+        print(f"CENARA_GENERATION stage=local status=fail detail={detail}")
+        raise RuntimeError("Falha no render local")
+    if not valid_mp4(out):
+        print(f"CENARA_GENERATION stage=local status=invalid exists={out.exists()} bytes={out.stat().st_size if out.exists() else 0}")
+        raise RuntimeError("MP4 local inválido")
+    print(f"CENARA_GENERATION stage=local status=pass bytes={out.stat().st_size}")
     return out
 
 def generate(prompt: str, style: str, aspect: str, seconds: int):
@@ -217,11 +241,16 @@ def generate(prompt: str, style: str, aspect: str, seconds: int):
     task_dir = TASKS / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     direction = director(prompt, style, seconds)
-    target = task_dir / "cenara-video.mp4"
-    provider = "local"
     provider_error = ""
 
-    if has("HF_TOKEN"):
+    # 1) Zero-cost visual path proven in production canary: AI images -> cinematic MP4.
+    storyboard = storyboard_video(task_dir, direction["visual_prompt"], aspect, seconds)
+    if storyboard and valid_mp4(storyboard):
+        return storyboard, "ai_storyboard", provider_error
+
+    # 2) Optional Hugging Face video path. Failure never blocks delivery.
+    if has("HF_TOKEN") and os.getenv("CENARA_TRY_HF_VIDEO", "0") == "1":
+        target = task_dir / "cenara-video.mp4"
         try:
             generate_huggingface_video_file(
                 direction["visual_prompt"],
@@ -229,22 +258,15 @@ def generate(prompt: str, style: str, aspect: str, seconds: int):
                 model=os.getenv("CENARA_HF_VIDEO_MODEL","Wan-AI/Wan2.1-T2V-1.3B"),
             )
             if valid_mp4(target):
-                provider = "huggingface"
-                return target, provider, provider_error
+                return target, "huggingface", provider_error
         except FrontierMediaError as exc:
             provider_error = " ".join(str(exc).split())[:220]
         except Exception as exc:
             provider_error = type(exc).__name__
 
-    # Zero-cost visual path: turn prompt-matched AI images into a cinematic MP4.
-    storyboard = storyboard_video(task_dir, direction["visual_prompt"], aspect, seconds)
-    if storyboard and valid_mp4(storyboard):
-        provider = "ai_storyboard"
-        return storyboard, provider, provider_error
-
-    # Last-resort guarantee: still return a valid MP4 even if every external model is unavailable.
+    # 3) Guaranteed local fallback. Always returns a validated MP4 or raises a specific render error.
     target = local_video(task_dir, prompt, aspect, seconds)
-    return target, provider, provider_error
+    return target, "local_motion", provider_error
 
 def recent(limit=6):
     items=[]
@@ -295,7 +317,8 @@ if go:
             status.update(label="Vídeo pronto",state="complete",expanded=False)
         except Exception as exc:
             status.update(label="Falha na geração",state="error",expanded=True)
-            st.error("Falha: "+type(exc).__name__)
+            st.error("Falha na geração: " + (str(exc) or type(exc).__name__))
+            print(f"CENARA_GENERATION stage=ui status=fail type={type(exc).__name__} detail={' '.join(str(exc).split())[:300]}")
 
 latest=st.session_state.get("cenara_video")
 if latest and Path(latest).is_file():
