@@ -6,6 +6,7 @@ import json
 import time
 import re
 import hashlib
+import hmac
 import subprocess
 from datetime import datetime
 from contextlib import contextmanager, suppress
@@ -300,23 +301,58 @@ def _expected_operator_token() -> str:
     return os.getenv("GX1_ACCESS_TOKEN") or config.app.get("api_key", "")
 
 
+def _issue_operator_route_token(secret: str) -> str:
+    ts = str(int(time.time()))
+    sig = hmac.new(
+        secret.encode("utf-8"),
+        f"cenara-route:{ts}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:32]
+    return f"{ts}.{sig}"
+
+
+def _valid_operator_route_token(secret: str, token: str, max_age_seconds: int = 43200) -> bool:
+    try:
+        ts_text, supplied_sig = str(token or "").split(".", 1)
+        ts = int(ts_text)
+    except (TypeError, ValueError):
+        return False
+    age = int(time.time()) - ts
+    if age < -120 or age > max_age_seconds:
+        return False
+    expected_sig = hmac.new(
+        secret.encode("utf-8"),
+        f"cenara-route:{ts_text}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:32]
+    return hmac.compare_digest(expected_sig, supplied_sig)
+
+
 def require_private_operator_token() -> None:
     expected_token = _expected_operator_token()
     if not expected_token:
         st.error("Private operator token is not configured. Set GX1_ACCESS_TOKEN before exposing this app.")
         st.stop()
 
-    if st.session_state.get("cenara_private_operator_authenticated"):
+    route_token = str(st.query_params.get("operator", "") or "")
+    if _valid_operator_route_token(expected_token, route_token):
+        st.session_state["cenara_private_operator_authenticated"] = True
         return
 
-    st.title("Cenara Private MVP")
-    st.info("Enter the private operator token to continue.")
-    supplied_token = st.text_input("Private operator token", type="password", key="cenara_private_operator_token")
-    if st.button("Unlock private operator console", type="primary"):
+    if st.session_state.get("cenara_private_operator_authenticated"):
+        if not route_token:
+            st.query_params["operator"] = _issue_operator_route_token(expected_token)
+        return
+
+    st.title("MVP Privado Cenara")
+    st.info("Insira o token de operador privado para continuar.")
+    supplied_token = st.text_input("Token de operador privado", type="password", key="cenara_private_operator_token")
+    if st.button("Desbloquear console de operador privado", type="primary"):
         if supplied_token == expected_token:
             st.session_state["cenara_private_operator_authenticated"] = True
+            st.query_params["operator"] = _issue_operator_route_token(expected_token)
             st.rerun()
-        st.error("Invalid private operator token.")
+        st.error("Token de operador inválido.")
     st.stop()
 
 

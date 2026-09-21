@@ -10,6 +10,7 @@ import html
 import os
 import textwrap
 from pathlib import Path
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -89,15 +90,21 @@ def _html_block(value: str) -> str:
     return textwrap.dedent(value).strip()
 
 
+def _route(view: str) -> str:
+    operator = str(st.query_params.get("operator", "") or "").strip()
+    suffix = f"&operator={quote(operator, safe='.')}" if operator else ""
+    return f"?view={quote(view, safe='')}{suffix}"
+
+
 def _sidebar(active: str = "home") -> str:
     items = [
-        ("home", "⌂", "Início", "?view=home"),
-        ("projects", "▣", "Projetos", "?view=projects"),
-        ("studio", "▷", "Criar Vídeo", "?view=studio"),
-        ("library", "▤", "Biblioteca", "?view=library"),
-        ("models", "▦", "Modelos", "?view=models"),
-        ("media", "▧", "Mídia", "?view=media"),
-        ("settings", "⚙", "Configurações", "?view=settings"),
+        ("home", "⌂", "Início", _route("home")),
+        ("projects", "▣", "Projetos", _route("projects")),
+        ("studio", "▷", "Criar Vídeo", _route("studio")),
+        ("library", "▤", "Biblioteca", _route("library")),
+        ("models", "▦", "Modelos", _route("models")),
+        ("media", "▧", "Mídia", _route("media")),
+        ("settings", "⚙", "Configurações", _route("settings")),
     ]
     nav = "".join(
         f'<a class="{"active" if key == active else ""}" href="{href}"><span class="ico">{ico}</span>{label}</a>'
@@ -107,7 +114,7 @@ def _sidebar(active: str = "home") -> str:
     <aside class="cz-side">
       <div class="cz-brand"><div class="cz-mark"></div><div><div class="cz-name">CENARA</div><div class="cz-tagline">AI VIDEOS. BIGGER IDEAS.</div></div></div>
       <nav class="cz-nav">{nav}</nav>
-      <div class="cz-pro"><b>✦ Cenara Studio</b><p>Criação audiovisual com IA, modelos abertos e direção inteligente.</p><a class="cz-upgrade" href="?view=studio">Criar agora</a></div>
+      <div class="cz-pro"><b>✦ Cenara Studio</b><p>Criação audiovisual com IA, modelos abertos e direção inteligente.</p><a class="cz-upgrade" href="{_route("studio")}">Criar agora</a></div>
     </aside>
     """)
 
@@ -184,7 +191,7 @@ def render_official_studio_header() -> None:
   {_sidebar("studio")}
   <main class="cz-main">
     {_topbar()}
-    <section class="cz-studio-head"><a class="cz-back" href="?view=home">← Voltar ao início</a><h1>Criar vídeo</h1><p>Direção, roteiro, mídia, voz, legendas, montagem e exportação em um fluxo único.</p></section>
+    <section class="cz-studio-head"><a class="cz-back" href="{_route("home")}">← Voltar ao início</a><h1>Criar vídeo</h1><p>Direção, roteiro, mídia, voz, legendas, montagem e exportação em um fluxo único.</p></section>
   </main>
 </div>
 """),
