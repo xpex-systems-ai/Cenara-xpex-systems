@@ -119,8 +119,49 @@ def pollinations_image(prompt: str, target: Path, width: int, height: int, seed:
         return False
 
 
+def _motion_kind(text: str) -> str:
+    value = (text or "").lower()
+    if any(x in value for x in ["carro","car ","vehicle","veículo","veiculo","moto","motorcycle","estrada","road","highway","acelerando","correndo","speed"]):
+        return "vehicle"
+    if any(x in value for x in ["avião","aviao","plane","drone","voando","flying","travel","viagem"]):
+        return "travel"
+    if any(x in value for x in ["pessoa","person","homem","mulher","walking","caminhando","running"]):
+        return "people"
+    return "cinematic"
+
+
+def _motion_shots(visual_prompt: str, motion_kind: str):
+    if motion_kind == "vehicle":
+        return [
+            visual_prompt + ". same black sports car, entering frame from the left on a highway, low tracking camera, wheels beginning to spin, road motion blur",
+            visual_prompt + ". same black sports car accelerating fast at center frame, dynamic side tracking shot, spinning wheels, strong road motion blur, realistic reflections",
+            visual_prompt + ". same black sports car passing camera at high speed toward the right, low angle dolly shot, strong directional blur, moving landscape",
+            visual_prompt + ". same black sports car farther ahead on the highway, rear three-quarter view, receding into distance, dynamic road perspective",
+        ]
+    if motion_kind == "travel":
+        return [
+            visual_prompt + ". wide establishing shot, subject entering frame, cinematic movement",
+            visual_prompt + ". tracking shot moving forward with the subject, realistic motion",
+            visual_prompt + ". medium dynamic shot, camera panning with subject, environmental parallax",
+            visual_prompt + ". closing shot, subject moving away into depth, cinematic finish",
+        ]
+    if motion_kind == "people":
+        return [
+            visual_prompt + ". same person beginning to move, wide shot, natural posture",
+            visual_prompt + ". same person walking through frame, medium tracking shot, natural body motion",
+            visual_prompt + ". same person continuing forward, side tracking shot, realistic movement",
+            visual_prompt + ". same person arriving at destination, cinematic closing shot",
+        ]
+    return [
+        visual_prompt + ". wide establishing shot, cinematic composition, premium commercial frame",
+        visual_prompt + ". slow camera push forward, medium hero shot, realistic detail, coherent subject continuity",
+        visual_prompt + ". side camera move with subtle parallax, premium commercial lighting",
+        visual_prompt + ". closing hero frame, dramatic polished advertising finish",
+    ]
+
+
 def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: int) -> Path | None:
-    """Create a real MP4 from prompt-matched AI imagery with a proven FFmpeg pipeline."""
+    """Create a motion-first MP4 from prompt-matched AI imagery and cinematic camera movement."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         print("CENARA_GENERATION stage=storyboard status=skip reason=ffmpeg_missing")
@@ -129,79 +170,104 @@ def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: i
     sizes = {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)}
     w, h = sizes.get(aspect, (1280, 720))
     image_w, image_h = (1024, 576) if aspect == "16:9" else ((576, 1024) if aspect == "9:16" else (768, 768))
-    shot_prompts = [
-        visual_prompt + ". wide establishing shot, cinematic composition, premium commercial frame",
-        visual_prompt + ". medium hero shot, realistic detail, elegant lighting, coherent subject continuity",
-        visual_prompt + ". close-up premium campaign frame, dramatic polished advertising finish",
-    ]
+    motion_kind = _motion_kind(visual_prompt)
+    shot_prompts = _motion_shots(visual_prompt, motion_kind)
 
     images = []
     seed_base = int(time.time()) % 100000
+    # Keep a related seed family so the subject has more visual continuity.
     for idx, shot in enumerate(shot_prompts):
-        target = task_dir / f"story-{idx+1}.jpg"
-        ok = pollinations_image(shot, target, image_w, image_h, seed_base + idx * 19)
-        print(f"CENARA_GENERATION stage=image index={idx+1} status={'ok' if ok else 'fail'}")
+        target = task_dir / f"motion-{idx+1}.jpg"
+        ok = pollinations_image(shot, target, image_w, image_h, seed_base + idx * 3)
+        print(f"CENARA_GENERATION stage=image motion={motion_kind} index={idx+1} status={'ok' if ok else 'fail'}")
         if ok:
             images.append(target)
     if not images:
         return None
 
-    clip_seconds = max(1.5, float(seconds) / len(images))
+    clip_seconds = max(1.2, float(seconds) / len(images))
     clips = []
     for idx, image in enumerate(images):
-        clip = task_dir / f"story-{idx+1}.mp4"
-        frames = max(45, int(clip_seconds * 30))
+        clip = task_dir / f"motion-{idx+1}.mp4"
+        frames = max(36, int(clip_seconds * 30))
+        # Alternate camera directions to create visible cinematic motion rather than a static zoom.
+        if idx % 3 == 0:
+            zoompan = f"zoompan=z='min(zoom+0.0024,1.16)':x='max(0,iw/2-(iw/zoom/2)-on*1.8)':y='ih/2-(ih/zoom/2)':d={frames}:s={w}x{h}:fps=30"
+        elif idx % 3 == 1:
+            zoompan = f"zoompan=z='min(zoom+0.0018,1.14)':x='min(iw-iw/zoom,iw/2-(iw/zoom/2)+on*1.6)':y='ih/2-(ih/zoom/2)':d={frames}:s={w}x{h}:fps=30"
+        else:
+            zoompan = f"zoompan=z='min(zoom+0.0022,1.15)':x='iw/2-(iw/zoom/2)':y='max(0,ih/2-(ih/zoom/2)-on*0.9)':d={frames}:s={w}x{h}:fps=30"
         vf = (
             f"scale={w}:{h}:force_original_aspect_ratio=increase,"
             f"crop={w}:{h},"
-            f"zoompan=z='min(zoom+0.0012,1.10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d={frames}:s={w}x{h}:fps=30,"
+            f"{zoompan},"
+            "eq=contrast=1.04:saturation=1.06,"
             "format=yuv420p"
         )
         try:
-            run = subprocess.run(
+            subprocess.run(
                 [
                     ffmpeg, "-y", "-loop", "1", "-i", str(image),
                     "-vf", vf,
                     "-t", f"{clip_seconds:.2f}", "-r", "30",
                     "-an", "-c:v", "libx264", "-preset", "veryfast",
-                    "-movflags", "+faststart", str(clip),
+                    "-crf", "21", "-movflags", "+faststart", str(clip),
                 ],
                 check=True, capture_output=True, text=True, timeout=180,
             )
             if valid_mp4(clip):
                 clips.append(clip)
-                print(f"CENARA_GENERATION stage=clip index={idx+1} status=ok bytes={clip.stat().st_size}")
-            else:
-                print(f"CENARA_GENERATION stage=clip index={idx+1} status=invalid")
+                print(f"CENARA_GENERATION stage=motion_clip index={idx+1} status=ok bytes={clip.stat().st_size}")
         except Exception as exc:
             detail = getattr(exc, "stderr", "") or str(exc)
-            print(f"CENARA_GENERATION stage=clip index={idx+1} status=fail detail={' '.join(detail.split())[:240]}")
+            print(f"CENARA_GENERATION stage=motion_clip index={idx+1} status=fail detail={' '.join(detail.split())[:240]}")
 
     if not clips:
         return None
 
-    listing = task_dir / "storyboard.txt"
+    # Smooth xfade between related frames. Fall back to concat if xfade is unavailable.
+    out = task_dir / "cenara-motion-storyboard.mp4"
+    if len(clips) > 1:
+        transition = min(0.35, clip_seconds * 0.20)
+        inputs = []
+        for clip in clips:
+            inputs += ["-i", str(clip)]
+        parts = []
+        prev = "[0:v]"
+        offset = clip_seconds - transition
+        for i in range(1, len(clips)):
+            tag = f"[v{i}]"
+            parts.append(f"{prev}[{i}:v]xfade=transition=fade:duration={transition:.2f}:offset={offset:.2f}{tag}")
+            prev = tag
+            offset += clip_seconds - transition
+        try:
+            subprocess.run(
+                [ffmpeg, "-y", *inputs, "-filter_complex", ";".join(parts), "-map", prev,
+                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+                 "-r", "30", "-movflags", "+faststart", str(out)],
+                check=True, capture_output=True, text=True, timeout=240,
+            )
+            if valid_mp4(out):
+                print(f"CENARA_GENERATION stage=motion_storyboard status=pass kind={motion_kind} bytes={out.stat().st_size}")
+                return out
+        except Exception as exc:
+            print(f"CENARA_GENERATION stage=xfade status=fail detail={' '.join(str(exc).split())[:180]}")
+
+    listing = task_dir / "motion-storyboard.txt"
     listing.write_text("".join(f"file '{p}'\n" for p in clips), encoding="utf-8")
-    out = task_dir / "cenara-storyboard.mp4"
     try:
         subprocess.run(
-            [
-                ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listing),
-                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
-                "-movflags", "+faststart", str(out),
-            ],
+            [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listing),
+             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+             "-movflags", "+faststart", str(out)],
             check=True, capture_output=True, text=True, timeout=240,
         )
         if valid_mp4(out):
-            print(f"CENARA_GENERATION stage=storyboard status=pass bytes={out.stat().st_size}")
+            print(f"CENARA_GENERATION stage=motion_storyboard status=pass kind={motion_kind} mode=concat bytes={out.stat().st_size}")
             return out
-        print("CENARA_GENERATION stage=storyboard status=invalid")
-        return None
     except Exception as exc:
-        detail = getattr(exc, "stderr", "") or str(exc)
-        print(f"CENARA_GENERATION stage=storyboard status=fail detail={' '.join(detail.split())[:300]}")
-        return None
+        print(f"CENARA_GENERATION stage=motion_storyboard status=fail detail={' '.join(str(exc).split())[:260]}")
+    return None
 
 def local_video(task_dir: Path, prompt: str, aspect: str, seconds: int) -> Path:
     """Guaranteed local MP4 fallback with animated graphics; no external provider/font dependency."""
@@ -246,7 +312,7 @@ def generate(prompt: str, style: str, aspect: str, seconds: int):
     # 1) Zero-cost visual path proven in production canary: AI images -> cinematic MP4.
     storyboard = storyboard_video(task_dir, direction["visual_prompt"], aspect, seconds)
     if storyboard and valid_mp4(storyboard):
-        return storyboard, "ai_storyboard", provider_error
+        return storyboard, "motion_storyboard", provider_error
 
     # 2) Optional Hugging Face video path. Failure never blocks delivery.
     if has("HF_TOKEN") and os.getenv("CENARA_TRY_HF_VIDEO", "0") == "1":
@@ -299,7 +365,7 @@ with left:
     with c:
         seconds=st.selectbox("Duração",[5,8,10,15],index=2,format_func=lambda x:str(x)+"s")
     go=st.button("✨ Gerar vídeo agora",use_container_width=True,type="primary",disabled=not prompt.strip())
-    st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Prompt</b><small>Você descreve</small></div><div class="cz-step"><b>02 · Diretor IA</b><small>OpenRouter organiza</small></div><div class="cz-step"><b>03 · Render</b><small>HF → AI storyboard → local</small></div><div class="cz-step"><b>04 · MP4</b><small>Preview e download</small></div></div>',unsafe_allow_html=True)
+    st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Prompt</b><small>Você descreve</small></div><div class="cz-step"><b>02 · Diretor IA</b><small>OpenRouter organiza</small></div><div class="cz-step"><b>03 · Render</b><small>Motion Storyboard → local</small></div><div class="cz-step"><b>04 · MP4</b><small>Preview e download</small></div></div>',unsafe_allow_html=True)
 
 with right:
     st.markdown('<div class="cz-card"><h2>Preview</h2><p style="color:#93a4b8">O resultado aparece aqui.</p></div>',unsafe_allow_html=True)
