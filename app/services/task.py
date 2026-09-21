@@ -413,6 +413,27 @@ def generate_survival_video(task_id, params, downloaded_videos, audio_file, subt
     valid_sources = [video_path for video_path in downloaded_videos or [] if isinstance(video_path, str) and os.path.isfile(video_path) and os.path.getsize(video_path) > 0]
     output_path = path.join(utils.task_dir(task_id), f"cenara-final-{task_id}.mp4")
     part_path = f"{output_path}.part"
+    if getattr(params, "video_source", "") == "frontier_ai" and valid_sources:
+        # Frontier providers already return a finished cinematic MP4, frequently
+        # with native synchronized audio. Preserve the provider master instead of
+        # downscaling/re-encoding it through Railway survival mode.
+        try:
+            shutil.copy2(valid_sources[0], output_path)
+            validation = ffprobe_validate_mp4(output_path)
+            if validation.get("valid"):
+                sm.state.update_task(
+                    task_id,
+                    render_engine="frontier_direct",
+                    render_started=True,
+                    mp4_created=True,
+                    output_path=output_path,
+                    frontier_master_preserved=True,
+                )
+                return [output_path], []
+        except Exception as exc:
+            logger.warning(f"frontier direct master fallback: {type(exc).__name__}")
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(output_path)
     with contextlib.suppress(FileNotFoundError):
         os.remove(part_path)
     if not valid_sources:
