@@ -18,6 +18,7 @@ if str(ROOT) not in os.sys.path:
 
 from app.services.frontier_media import FrontierMediaError, generate_huggingface_video_file
 from app.services.academy_lesson import AcademyLessonError, create_academy_lesson
+from app.services.open_video_router import OpenVideoRouterError, generate_open_video, configured_models
 
 STORAGE = ROOT / "storage"
 TASKS = STORAGE / "tasks"
@@ -316,28 +317,27 @@ def generate(prompt: str, style: str, aspect: str, seconds: int):
     direction = director(prompt, style, seconds)
     provider_error = ""
 
-    # 1) Zero-cost visual path proven in production canary: AI images -> cinematic MP4.
+    # 1) Open-model router: Wan -> LTX -> Mochi -> SkyReels -> Hunyuan.
+    target = task_dir / "cenara-open-video.mp4"
+    if configured_models():
+        try:
+            generated, model_id = generate_open_video(
+                direction["visual_prompt"],
+                target,
+                duration=seconds,
+                aspect=aspect,
+            )
+            if valid_mp4(generated):
+                return generated, "open_video:" + model_id, provider_error
+        except OpenVideoRouterError as exc:
+            provider_error = " ".join(str(exc).split())[:220]
+
+    # 2) Zero-cost motion storyboard. Never blocks delivery.
     storyboard = storyboard_video(task_dir, direction["visual_prompt"], aspect, seconds)
     if storyboard and valid_mp4(storyboard):
         return storyboard, "motion_storyboard", provider_error
 
-    # 2) Optional Hugging Face video path. Failure never blocks delivery.
-    if has("HF_TOKEN") and os.getenv("CENARA_TRY_HF_VIDEO", "0") == "1":
-        target = task_dir / "cenara-video.mp4"
-        try:
-            generate_huggingface_video_file(
-                direction["visual_prompt"],
-                str(target),
-                model=os.getenv("CENARA_HF_VIDEO_MODEL","Wan-AI/Wan2.1-T2V-1.3B"),
-            )
-            if valid_mp4(target):
-                return target, "huggingface", provider_error
-        except FrontierMediaError as exc:
-            provider_error = " ".join(str(exc).split())[:220]
-        except Exception as exc:
-            provider_error = type(exc).__name__
-
-    # 3) Guaranteed local fallback. Always returns a validated MP4 or raises a specific render error.
+    # 3) Guaranteed local MP4 fallback.
     target = local_video(task_dir, prompt, aspect, seconds)
     return target, "local_motion", provider_error
 
@@ -360,6 +360,7 @@ badges = [
     "OpenRouter pronto" if has("OPENROUTER_API_KEY") else "Diretor local",
     "Edge TTS pronto",
     "FFmpeg pronto" if shutil.which("ffmpeg") else "FFmpeg ausente",
+    ("Open Video: " + str(len(configured_models())) + " motores" if configured_models() else "Open Video: aguardando endpoint"),
     "Modo XPeX Academy",
 ]
 st.markdown('<div class="cz-top"><div class="cz-brand"><span>▶</span> CENARA</div><div class="cz-pills">' + ''.join('<span class="cz-pill">● '+x+'</span>' for x in badges) + '</div></div>', unsafe_allow_html=True)
