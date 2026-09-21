@@ -343,12 +343,17 @@ def generate(prompt: str, style: str, aspect: str, seconds: int):
 
 def recent(limit=6):
     items=[]
-    for p in TASKS.glob("quick-*/cenara-*.mp4"):
-        try:
-            if valid_mp4(p):
-                items.append(p)
-        except Exception:
-            pass
+    patterns = [
+        "quick-*/cenara-*.mp4",
+        "academy-*/xpex-academy-lesson.mp4",
+    ]
+    for pattern in patterns:
+        for p in TASKS.glob(pattern):
+            try:
+                if valid_mp4(p):
+                    items.append(p)
+            except Exception:
+                pass
     return sorted(items,key=lambda p:p.stat().st_mtime,reverse=True)[:limit]
 
 badges = [
@@ -439,6 +444,12 @@ if mode == "Vídeo livre" and go:
             print(f"CENARA_GENERATION stage=ui status=fail type={type(exc).__name__} detail={' '.join(str(exc).split())[:300]}")
 
 latest=st.session_state.get("cenara_video")
+if not latest:
+    academy_candidates = sorted(TASKS.glob("academy-*/xpex-academy-lesson.mp4"), key=lambda p:p.stat().st_mtime if p.exists() else 0, reverse=True)
+    if academy_candidates and valid_mp4(academy_candidates[0]):
+        latest = str(academy_candidates[0])
+        st.session_state["cenara_provider"] = "xpex_academy_lesson_v1"
+
 if latest and Path(latest).is_file():
     with right:
         st.video(latest)
