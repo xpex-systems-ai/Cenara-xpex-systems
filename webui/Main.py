@@ -882,7 +882,9 @@ def cenara_provider_readiness(selected_video_source="pexels", selected_tts_serve
     pexels_ok = _has_configured_secret(_provider_secret_list("pexels", config_value=config.app.get("pexels_api_keys")))
     pixabay_ok = _has_configured_secret(_provider_secret_list("pixabay", config_value=config.app.get("pixabay_api_keys")))
     coverr_ok = _has_configured_secret(_provider_secret_list("coverr", config_value=config.app.get("coverr_api_keys")))
-    frontier_ok = _has_configured_secret(os.getenv("FAL_KEY", ""))
+    frontier_provider = (os.getenv("CENARA_FRONTIER_PROVIDER", "huggingface") or "huggingface").strip().lower()
+    frontier_ok = _has_configured_secret(os.getenv("HF_TOKEN", "")) if frontier_provider == "huggingface" else _has_configured_secret(os.getenv("FAL_KEY", ""))
+    openrouter_ok = _has_configured_secret(os.getenv("OPENROUTER_API_KEY", ""))
     nano_banana_ok = _has_configured_secret(os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", ""))
     source_ok = selected_video_source in ["pexels", "pixabay", "coverr", "local", "frontier_ai"]
     if selected_video_source == "frontier_ai":
@@ -913,7 +915,8 @@ def cenara_provider_readiness(selected_video_source="pexels", selected_tts_serve
         "Pexels": ("configured" if pexels_ok else "missing", "fonte de vídeo"),
         "Pixabay": ("configured" if pixabay_ok else "missing", "fonte de vídeo"),
         "Coverr": ("configured" if coverr_ok else "optional", "fonte opcional"),
-        "Frontier Video": ("configured" if frontier_ok else "optional", os.getenv("CENARA_FRONTIER_VIDEO_MODEL", "seedance-2")),
+        "Frontier Video": ("configured" if frontier_ok else "optional", f"{frontier_provider} · {os.getenv('CENARA_HF_VIDEO_MODEL', os.getenv('CENARA_FRONTIER_VIDEO_MODEL', 'Lightricks/LTX-Video-0.9.8-13B-distilled'))}"),
+        "OpenRouter": ("configured" if openrouter_ok else "optional", os.getenv("OPENROUTER_MODEL", "openrouter/free")),
         "Nano Banana": ("configured" if nano_banana_ok else "optional", os.getenv("CENARA_NANO_BANANA_MODEL", "gemini-3.1-flash-image")),
         "Fonte de vídeo": ("configured" if source_ok else "blocked", selected_video_source),
         "Voz/TTS": ("configured" if tts_ok else "blocked", tts_server_id),
@@ -1670,7 +1673,8 @@ def cenara_runtime_diagnostics():
         "ImageMagick": shutil.which("magick") or shutil.which("convert") or "opcional/não encontrado",
         "Pasta de saída": "ok" if output_dir.exists() and os.access(output_dir, os.W_OK) else "indisponível",
         "Pasta de tarefas": "ok" if tasks_dir.exists() or os.access(output_dir, os.W_OK) else "será criada ao gerar",
-        "Frontier AI": "pronto" if os.getenv("FAL_KEY") else "aguardando FAL_KEY",
+        "Frontier AI": "pronto" if (os.getenv("HF_TOKEN") if (os.getenv("CENARA_FRONTIER_PROVIDER", "huggingface") == "huggingface") else os.getenv("FAL_KEY")) else "aguardando HF_TOKEN",
+        "OpenRouter": "pronto" if os.getenv("OPENROUTER_API_KEY") else "aguardando OPENROUTER_API_KEY",
         "Nano Banana": "pronto" if (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")) else "aguardando GEMINI_API_KEY",
     }
 
