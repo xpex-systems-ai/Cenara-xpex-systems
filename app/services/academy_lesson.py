@@ -15,6 +15,7 @@ import requests
 from loguru import logger
 
 from app.services import voice
+from PIL import Image, ImageDraw, ImageFont
 
 
 class AcademyLessonError(RuntimeError):
@@ -293,25 +294,26 @@ def _render_presenter_motion(avatar: Path, audio: Path, output: Path, seconds: f
         raise AcademyLessonError("FFmpeg ausente")
     safe = _safe_drawtext(title, 58)
     frames = max(90, int(seconds * 30))
+    # Preserve the full face/head and place instructor on the right instead of destructive crop/zoom.
     vf = (
-        "crop=iw:ih-28:0:0,"
-        "scale=1280:720:force_original_aspect_ratio=increase,"
-        "crop=1280:720,"
-        f"zoompan=z='min(zoom+0.00075,1.08)':x='iw/2-(iw/zoom/2)+8*sin(on/18)':y='ih/2-(ih/zoom/2)+5*sin(on/24)':d={frames}:s=1280x720:fps=30,"
-        "drawbox=x=0:y=0:w=iw:h=ih*0.14:color=0x06111f@0.72:t=fill,"
-        f"drawtext=text='XPeX Academy':fontcolor=0x21d4f4:fontsize=30:x=55:y=32,"
-        f"drawtext=text='{safe}':fontcolor=white:fontsize=34:x=55:y=78,"
+        "scale=520:520:force_original_aspect_ratio=decrease,"
+        "pad=1280:720:(ow-iw)-70:(oh-ih)/2:color=0x06101c,"
+        "drawbox=x=0:y=0:w=650:h=720:color=0x081b2c@1:t=fill,"
+        "drawbox=x=58:y=80:w=530:h=500:color=0x0b2c41@1:t=fill,"
+        "drawtext=text='XPeX ACADEMY':fontcolor=0x21d4f4:fontsize=30:x=86:y=112,"
+        f"drawtext=text='{safe}':fontcolor=white:fontsize=42:x=86:y=180,"
+        "drawtext=text='Aula oficial':fontcolor=0xff7a00:fontsize=28:x=86:y=520,"
+        f"zoompan=z='1.0+0.01*sin(on/20)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=1280x720:fps=30,"
         "format=yuv420p"
     )
     subprocess.run(
         [ffmpeg, "-y", "-loop", "1", "-i", str(avatar), "-i", str(audio),
          "-vf", vf, "-t", f"{seconds:.3f}", "-r", "30",
          "-map", "0:v:0", "-map", "1:a:0",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output)],
         check=True, capture_output=True, text=True, timeout=max(240, int(seconds * 5)),
     )
-
 
 def _try_wav2lip(avatar: Path, audio: Path, output: Path) -> bool:
     wav2lip_dir = Path(os.getenv("CENARA_WAV2LIP_DIR", "").strip())
@@ -340,6 +342,82 @@ def _render_talking_head_scene(task_dir: Path, avatar: Path, audio: Path, second
         return out, "wav2lip"
     _render_presenter_motion(avatar, audio, out, seconds, title)
     return out, "presenter_motion"
+
+
+
+def _font(size: int, bold: bool = False):
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    ]
+    for candidate in candidates:
+        if Path(candidate).is_file():
+            return ImageFont.truetype(candidate, size=size)
+    return ImageFont.load_default()
+
+
+def _wrap(draw, text: str, font, max_width: int) -> list[str]:
+    words = (text or "").split()
+    lines, line = [], ""
+    for word in words:
+        trial = (line + " " + word).strip()
+        box = draw.textbbox((0, 0), trial, font=font)
+        if box[2] - box[0] <= max_width:
+            line = trial
+        else:
+            if line:
+                lines.append(line)
+            line = word
+    if line:
+        lines.append(line)
+    return lines[:5]
+
+
+def _branded_slide(task_dir: Path, title: str, body: str, idx: int) -> Path:
+    out = task_dir / f"branded-support-{idx+1:02d}.png"
+    img = Image.new("RGB", (1280, 720), (5, 16, 28))
+    d = ImageDraw.Draw(img)
+
+    # premium XPeX frame
+    d.rounded_rectangle((42, 36, 1238, 684), radius=34, fill=(8, 27, 44), outline=(26, 91, 122), width=2)
+    d.rounded_rectangle((72, 66, 1208, 142), radius=22, fill=(8, 44, 65))
+    d.text((96, 88), "XPeX ACADEMY", font=_font(26, True), fill=(31, 212, 244))
+    d.text((96, 176), title, font=_font(46, True), fill="white")
+
+    # visual concept cards, deterministic and readable
+    concepts = []
+    low = title.lower()
+    if "machine" in low:
+        concepts = [("DADOS", "exemplos"), ("MODELO", "aprende padrões"), ("PREVISÃO", "aplica")]
+    elif "generativa" in low:
+        concepts = [("PROMPT", "instrução"), ("MODELO", "gera"), ("CONTEÚDO", "texto • imagem • áudio")]
+    elif "artificial" in low:
+        concepts = [("IA", "campo amplo"), ("ML", "aprende padrões"), ("GEN AI", "cria conteúdo")]
+    elif "aplicação" in low or "prática" in low:
+        concepts = [("ENTRADA", "problema"), ("PROCESSO", "IA adequada"), ("SAÍDA", "resultado validado")]
+    else:
+        concepts = [("CONCEITO", "entender"), ("EXEMPLO", "visualizar"), ("PRÁTICA", "aplicar")]
+
+    x0, y0, card_w, gap = 92, 290, 330, 36
+    for n, (head, sub) in enumerate(concepts[:3]):
+        x = x0 + n * (card_w + gap)
+        d.rounded_rectangle((x, y0, x+card_w, y0+190), radius=24, fill=(11, 40, 60), outline=(29, 115, 148), width=2)
+        d.ellipse((x+24, y0+24, x+78, y0+78), fill=(255, 122, 0))
+        d.text((x+96, y0+28), head, font=_font(27, True), fill="white")
+        for li, line in enumerate(_wrap(d, sub, _font(25), card_w-48)):
+            d.text((x+28, y0+104+li*34), line, font=_font(25), fill=(195, 218, 232))
+        if n < 2:
+            d.text((x+card_w+8, y0+72), "→", font=_font(44, True), fill=(31, 212, 244))
+
+    # concise teaching line at bottom
+    summary = (body or "").strip().split(".")[0][:140]
+    if summary:
+        d.rounded_rectangle((92, 522, 1188, 635), radius=18, fill=(6, 22, 36))
+        for li, line in enumerate(_wrap(d, summary, _font(26), 1030)):
+            d.text((120, 548+li*34), line, font=_font(26), fill=(220, 232, 240))
+
+    img.save(out, quality=95)
+    return out
 
 
 def _render_support_scene(task_dir: Path, image: Path | None, avatar: Path | None, audio: Path, seconds: float, title: str, idx: int) -> Path:
@@ -443,14 +521,12 @@ def create_academy_lesson(
             )
             lipsync_modes.add(engine)
         else:
-            visual_path = task_dir / f"support-{idx+1:02d}.jpg"
-            visual_prompt = (
-                (scene.get("visual") or topic)
-                + ". XPeX Academy educational visual, clean infographic-like composition, dark navy, cyan and orange accents, "
-                "professional, realistic, 16:9, no text, no logo, directly relevant to the lesson concept."
+            visual_path = _branded_slide(
+                task_dir,
+                scene.get("title") or f"Parte {idx+1}",
+                scene_script,
+                idx,
             )
-            if not _pollinations_image(visual_prompt, visual_path, 1024, 576, visual_seed + idx):
-                visual_path = None
             scene_video = _render_support_scene(
                 task_dir, visual_path, avatar if avatar_enabled else None, preserved_audio,
                 scene_duration, scene.get("title") or f"Parte {idx+1}", idx
@@ -493,7 +569,9 @@ def create_academy_lesson(
         "avatar_enabled": bool(avatar_enabled and avatar.is_file()),
         "lipsync_mode": "wav2lip" if "wav2lip" in lipsync_modes else ("presenter_motion" if avatar_enabled else "none"),
         "output": str(final),
-        "engine": "xpex_instructor_engine_v2",
+        "engine": "xpex_instructor_engine_v3",
+        "quality_profile": "academy_clean_no_gibberish",
+        "support_visual_policy": "deterministic_branded_slides",
     }
     (task_dir / "lesson-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return final, manifest
