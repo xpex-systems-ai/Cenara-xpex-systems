@@ -300,13 +300,13 @@ def _render_presenter_motion(avatar: Path, audio: Path, output: Path, seconds: f
     # Preserve the full face/head and place instructor on the right instead of destructive crop/zoom.
     vf = (
         "scale=520:520:force_original_aspect_ratio=decrease,"
-        "pad=1920:1080:(ow-iw)-70:(oh-ih)/2:color=0x06101c,"
+        "pad=1280:720:(ow-iw)-70:(oh-ih)/2:color=0x06101c,"
         "drawbox=x=0:y=0:w=650:h=720:color=0x081b2c@1:t=fill,"
         "drawbox=x=58:y=80:w=530:h=500:color=0x0b2c41@1:t=fill,"
         "drawtext=text='XPeX ACADEMY':fontcolor=0x21d4f4:fontsize=30:x=86:y=112,"
         f"drawtext=text='{safe}':fontcolor=white:fontsize=42:x=86:y=180,"
         "drawtext=text='Aula oficial':fontcolor=0xff7a00:fontsize=28:x=86:y=520,"
-        f"zoompan=z='1.0+0.01*sin(on/20)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=1920x1080:fps=30000/1001,"
+        f"zoompan=z='1.0+0.01*sin(on/20)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=1280x720:fps=30000/1001,"
         "format=yuv420p"
     )
     subprocess.run(
@@ -493,7 +493,7 @@ def _dynamic_presenter_chunk(
 
     if variant % 3 == 0:
         avatar_scale = "scale=520:520:force_original_aspect_ratio=decrease"
-        pad = "pad=1920:1080:690:(oh-ih)/2:color=0x06101c"
+        pad = "pad=1280:720:690:(oh-ih)/2:color=0x06101c"
         accents = (
             "drawbox=x=58:y=95:w=545:h=470:color=0x0a2238@0.96:t=fill,"
             "drawbox=x=58:y=95:w='min(545,t*120)':h=7:color=0x21d4f4@1:t=fill,"
@@ -506,7 +506,7 @@ def _dynamic_presenter_chunk(
         )
     elif variant % 3 == 1:
         avatar_scale = "scale=610:610:force_original_aspect_ratio=decrease"
-        pad = "pad=1920:1080:620:(oh-ih)/2:color=0x050d17"
+        pad = "pad=1280:720:620:(oh-ih)/2:color=0x050d17"
         accents = (
             "drawbox=x=0:y=0:w=560:h=720:color=0x081b2c@1:t=fill,"
             "drawbox=x=64:y=126:w='min(430,t*170)':h=5:color=0xff7a00@1:t=fill,"
@@ -519,7 +519,7 @@ def _dynamic_presenter_chunk(
         )
     else:
         avatar_scale = "scale=470:470:force_original_aspect_ratio=decrease"
-        pad = "pad=1920:1080:760:140:color=0x06101c"
+        pad = "pad=1280:720:760:140:color=0x06101c"
         accents = (
             "drawbox=x=54:y=74:w=650:h=560:color=0x081d30@0.98:t=fill,"
             "drawbox=x='54+mod(t*85,560)':y=606:w=90:h=4:color=0x21d4f4@0.9:t=fill,"
@@ -534,7 +534,7 @@ def _dynamic_presenter_chunk(
     vf = (
         f"{avatar_scale},{pad},"
         f"{accents}{texts}"
-        f"zoompan=z='1.0+0.006*sin(on/18)':x='iw/2-(iw/zoom/2)+2*sin(on/13)':y='ih/2-(ih/zoom/2)+2*sin(on/19)':d={frames}:s=1920x1080:fps=30000/1001,"
+        f"zoompan=z='1.0+0.006*sin(on/18)':x='iw/2-(iw/zoom/2)+2*sin(on/13)':y='ih/2-(ih/zoom/2)+2*sin(on/19)':d={frames}:s=1280x720:fps=30000/1001,"
         "format=yuv420p"
     )
     subprocess.run(
@@ -564,14 +564,14 @@ def _dynamic_support_chunk(
     frames = max(60, int(seconds * 30))
 
     if variant % 3 == 0:
-        motion = f"zoompan=z='min(zoom+0.0015,1.11)':x='iw/2-(iw/zoom/2)+on*0.25':y='ih/2-(ih/zoom/2)':d={frames}:s=1920x1080:fps=30000/1001"
+        motion = f"zoompan=z='min(zoom+0.0015,1.11)':x='iw/2-(iw/zoom/2)+on*0.25':y='ih/2-(ih/zoom/2)':d={frames}:s=1280x720:fps=30000/1001"
     elif variant % 3 == 1:
-        motion = f"zoompan=z='min(zoom+0.0013,1.10)':x='iw/2-(iw/zoom/2)-on*0.22':y='ih/2-(ih/zoom/2)':d={frames}:s=1920x1080:fps=30000/1001"
+        motion = f"zoompan=z='min(zoom+0.0013,1.10)':x='iw/2-(iw/zoom/2)-on*0.22':y='ih/2-(ih/zoom/2)':d={frames}:s=1280x720:fps=30000/1001"
     else:
-        motion = f"zoompan=z='1.05+0.025*sin(on/24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)+4*sin(on/20)':d={frames}:s=1920x1080:fps=30000/1001"
+        motion = f"zoompan=z='1.05+0.025*sin(on/24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)+4*sin(on/20)':d={frames}:s=1280x720:fps=30000/1001"
 
     common = (
-        f"scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,{motion},"
+        f"scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,{motion},"
         "drawbox=x=0:y=0:w=1280:h=86:color=0x04101c@0.84:t=fill,"
         f"drawtext=text='{safe_title}':fontcolor=white:fontsize=34:x=48:y=24,"
         f"drawbox=x='48+mod(t*120,930)':y=650:w=120:h=5:color=0x21d4f4@0.9:t=fill,"
@@ -612,7 +612,7 @@ def _render_open_video_support(
     safe_title = _safe_drawtext(title, 52)
     safe_kw = _safe_drawtext(keyword.upper(), 24)
     vf = (
-        "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,"
+        "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,"
         "drawbox=x=0:y=0:w=1280:h=86:color=0x04101c@0.82:t=fill,"
         f"drawtext=text='{safe_title}':fontcolor=white:fontsize=34:x=48:y=24,"
         "drawbox=x=48:y=626:w=520:h=62:color=0x06101c@0.80:t=fill,"
@@ -738,6 +738,25 @@ def _concat_av_scenes(task_dir: Path, scenes: list[Path], output: Path) -> None:
     )
 
 
+
+def _finalize_roman_master(source: Path, output: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise AcademyLessonError("FFmpeg ausente")
+    subprocess.run(
+        [
+            ffmpeg, "-y", "-i", str(source),
+            "-vf", "scale=1920:1080:flags=lanczos,format=yuv420p",
+            "-r", "30000/1001",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+            "-movflags", "+faststart",
+            str(output),
+        ],
+        check=True, capture_output=True, text=True, timeout=1200,
+    )
+
+
 def create_academy_lesson(
     topic: str,
     objective: str = "",
@@ -811,8 +830,12 @@ def create_academy_lesson(
     if not rendered_scenes:
         raise AcademyLessonError("Nenhuma cena da aula foi renderizada")
 
+    intermediate = task_dir / "xpex-academy-lesson-720p.mp4"
+    _concat_av_scenes(task_dir, rendered_scenes, intermediate)
+    if not intermediate.is_file() or intermediate.stat().st_size < 100_000:
+        raise AcademyLessonError("MP4 intermediário não foi criado")
     final = task_dir / "xpex-academy-lesson.mp4"
-    _concat_av_scenes(task_dir, rendered_scenes, final)
+    _finalize_roman_master(intermediate, final)
     if not final.is_file() or final.stat().st_size < 100_000:
         raise AcademyLessonError("MP4 final não foi criado")
 
@@ -840,7 +863,7 @@ def create_academy_lesson(
         "engine": "xpex_ultra_video_engine_v6",
         "quality_profile": active_profile().name,
         "support_visual_policy": "kinetic_branded_slides_presenter_intercuts_and_open_video_broll",
-        "master_format": "1920x1080_29.97fps_h264_high_quality_aac48k",
+        "master_format": "1920x1080_29.97fps_h264_high_quality_aac48k_low_memory_pipeline",
         "reference_profile": "roman_last_look_documentary",
     }
     (task_dir / "lesson-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
