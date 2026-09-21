@@ -57,6 +57,7 @@ from app.services.runtime_limits import get_runtime_limits
 from app.services.railway_render import ffprobe_validate_mp4
 from app.services import task as tm
 from app.utils import utils
+from webui.cenara_official import inject_official_theme, render_official_home, render_official_studio_header
 
 st.set_page_config(
     page_title="Cenara",
@@ -315,6 +316,14 @@ def require_private_operator_token() -> None:
 
 
 require_private_operator_token()
+inject_official_theme()
+
+_cenara_view = str(st.query_params.get("view", "home") or "home").strip().lower()
+if _cenara_view != "studio":
+    render_official_home()
+    st.stop()
+
+render_official_studio_header()
 _render_seedance_first_flight_preview()
 
 # 定义资源目录
@@ -494,6 +503,7 @@ selected_language = st.selectbox(
     options=display_languages,
     index=selected_index,
     key="top_language_selector",
+    label_visibility="collapsed",
 )
 if selected_language:
     code = selected_language.split(" - ")[0].strip()
@@ -1694,7 +1704,7 @@ def cenara_render_hero_and_stepper():
 
 def cenara_render_provider_center(readiness):
     overall_blocked = any(status == "blocked" for status, _ in readiness.values())
-    with st.expander("Central de Provedores · chaves preservadas quando campos ficam em branco", expanded=True):
+    with st.expander("Diagnóstico técnico e provedores", expanded=False):
         st.caption(f"Status geral: {'Bloqueado' if overall_blocked else 'Pronto'} · segredos salvos nunca são exibidos.")
         cols = st.columns(4)
         for index, (label, (status, detail)) in enumerate(readiness.items()):
@@ -1731,7 +1741,7 @@ def cenara_render_command_center(params, selected_tts_server):
                 _video_sources,
                 index=_video_sources.index(params.video_source if params.video_source in _video_sources else "frontier_ai"),
                 format_func=lambda value: {
-                    "frontier_ai": "Frontier AI · Seedance / Veo / Kling / Wan",
+                    "frontier_ai": "Frontier AI · Hugging Face / Open Models",
                     "pexels": "Pexels",
                     "pixabay": "Pixabay",
                     "coverr": "Coverr",
