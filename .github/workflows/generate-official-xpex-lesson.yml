@@ -1,5 +1,5 @@
 name: Generate Official XPeX Lesson
-# trigger-v5-official
+# trigger-v6-premium-dynamic
 
 on:
   push:
