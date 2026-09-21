@@ -363,10 +363,10 @@ badges = [
     "FFmpeg pronto" if shutil.which("ffmpeg") else "FFmpeg ausente",
     ("Open Video Ultra: " + str(len(configured_models())) + " motores" if configured_models() else "Open Video Ultra: fallback ativo"),
     ("Avatar Ultra: " + str(len(configured_avatar_engines())) + " motores" if configured_avatar_engines() else "Avatar Ultra: fallback ativo"),
-    "XPeX Ultra Video Engine",
+    "XPeX Roman Master Engine",
 ]
 st.markdown('<div class="cz-top"><div class="cz-brand"><span>▶</span> CENARA</div><div class="cz-pills">' + ''.join('<span class="cz-pill">● '+x+'</span>' for x in badges) + '</div></div>', unsafe_allow_html=True)
-st.markdown('<div class="cz-hero"><h1>Estúdio de Aulas<br><span style="color:#19d3f3">XPeX Academy.</span></h1><p>Crie aulas em blocos de 3 ou 4 minutos com roteiro, voz, edição dinâmica, cortes curtos, professor em tela, gráficos animados e MP4 pronto para publicar no curso.</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="cz-hero"><h1>Estúdio de Aulas<br><span style="color:#19d3f3">XPeX Academy.</span></h1><p>Crie aulas em blocos de 3 ou 4 minutos com roteiro, voz, master 1080p, vídeo documental cinematográfico, cortes profissionais, professor e B-roll e MP4 pronto para publicar no curso.</p></div>', unsafe_allow_html=True)
 
 mode = st.radio("Modo de produção", ["Aula XPeX Academy", "Vídeo livre"], horizontal=True, label_visibility="collapsed")
 
