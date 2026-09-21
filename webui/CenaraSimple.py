@@ -132,11 +132,12 @@ def _motion_kind(text: str) -> str:
 
 def _motion_shots(visual_prompt: str, motion_kind: str):
     if motion_kind == "vehicle":
+        continuity = ". STRICT CONTINUITY: the exact same vehicle in every shot, identical black paint, identical body shape, identical wheels, identical headlights and spoiler, no color changes, no model changes."
         return [
-            visual_prompt + ". same black sports car, entering frame from the left on a highway, low tracking camera, wheels beginning to spin, road motion blur",
-            visual_prompt + ". same black sports car accelerating fast at center frame, dynamic side tracking shot, spinning wheels, strong road motion blur, realistic reflections",
-            visual_prompt + ". same black sports car passing camera at high speed toward the right, low angle dolly shot, strong directional blur, moving landscape",
-            visual_prompt + ". same black sports car farther ahead on the highway, rear three-quarter view, receding into distance, dynamic road perspective",
+            visual_prompt + continuity + " Shot 1: entering frame from the left on a highway, low tracking camera, wheels beginning to spin, road motion blur",
+            visual_prompt + continuity + " Shot 2: accelerating fast at center frame, dynamic side tracking shot, spinning wheels, strong road motion blur, realistic reflections",
+            visual_prompt + continuity + " Shot 3: passing camera at high speed toward the right, low angle dolly shot, strong directional blur, moving landscape",
+            visual_prompt + continuity + " Shot 4: farther ahead on the highway, rear three-quarter view, receding into distance, dynamic road perspective",
         ]
     if motion_kind == "travel":
         return [
@@ -178,7 +179,7 @@ def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: i
     # Keep a related seed family so the subject has more visual continuity.
     for idx, shot in enumerate(shot_prompts):
         target = task_dir / f"motion-{idx+1}.jpg"
-        ok = pollinations_image(shot, target, image_w, image_h, seed_base + idx * 3)
+        ok = pollinations_image(shot, target, image_w, image_h, seed_base)
         print(f"CENARA_GENERATION stage=image motion={motion_kind} index={idx+1} status={'ok' if ok else 'fail'}")
         if ok:
             images.append(target)
@@ -198,6 +199,7 @@ def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: i
         else:
             zoompan = f"zoompan=z='min(zoom+0.0022,1.15)':x='iw/2-(iw/zoom/2)':y='max(0,ih/2-(ih/zoom/2)-on*0.9)':d={frames}:s={w}x{h}:fps=30"
         vf = (
+            f"crop=iw:ih-28:0:0,"
             f"scale={w}:{h}:force_original_aspect_ratio=increase,"
             f"crop={w}:{h},"
             f"{zoompan},"
@@ -243,6 +245,8 @@ def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: i
         try:
             subprocess.run(
                 [ffmpeg, "-y", *inputs, "-filter_complex", ";".join(parts), "-map", prev,
+                 "-vf", f"tpad=stop_mode=clone:stop_duration={max(0.0, float(seconds) - (clip_seconds * len(clips) - transition * (len(clips)-1))):.2f}",
+                 "-t", str(seconds),
                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
                  "-r", "30", "-movflags", "+faststart", str(out)],
                 check=True, capture_output=True, text=True, timeout=240,
@@ -258,6 +262,8 @@ def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: i
     try:
         subprocess.run(
             [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listing),
+             "-vf", f"tpad=stop_mode=clone:stop_duration=1",
+             "-t", str(seconds),
              "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
              "-movflags", "+faststart", str(out)],
             check=True, capture_output=True, text=True, timeout=240,
