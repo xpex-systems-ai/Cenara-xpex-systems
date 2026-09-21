@@ -446,6 +446,208 @@ def _render_support_scene(task_dir: Path, image: Path | None, avatar: Path | Non
     return out
 
 
+
+def _keywords(text: str, limit: int = 4) -> list[str]:
+    stop = {
+        "para","como","com","uma","que","por","dos","das","mais","esta","este","essa","isso","seu","sua",
+        "você","voce","eles","elas","sobre","entre","quando","onde","aula","xpex","academy","também","tambem",
+        "porque","muito","cada","pode","podem","usar","usando","ser","são","sao","foi","tem","ter"
+    }
+    words = re.findall(r"[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9+-]{2,}", text or "")
+    seen, ranked = set(), []
+    for w in words:
+        k = w.strip(".,:;!?").lower()
+        if k in stop or k in seen or len(k) < 4:
+            continue
+        seen.add(k)
+        ranked.append(w.strip(".,:;!?"))
+    return ranked[:limit] or ["CONCEITO", "EXEMPLO", "PRÁTICA"]
+
+
+def _trim_audio(src: Path, dst: Path, start: float, duration: float) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    subprocess.run(
+        [ffmpeg, "-y", "-ss", f"{start:.3f}", "-i", str(src), "-t", f"{duration:.3f}",
+         "-c:a", "libmp3lame", "-q:a", "3", str(dst)],
+        check=True, capture_output=True, text=True, timeout=90,
+    )
+
+
+def _dynamic_presenter_chunk(
+    avatar: Path,
+    audio: Path,
+    output: Path,
+    seconds: float,
+    title: str,
+    keyword: str,
+    variant: int,
+) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise AcademyLessonError("FFmpeg ausente")
+    safe_title = _safe_drawtext(title, 46)
+    safe_kw = _safe_drawtext(keyword.upper(), 26)
+    frames = max(60, int(seconds * 30))
+
+    if variant % 3 == 0:
+        avatar_scale = "scale=520:520:force_original_aspect_ratio=decrease"
+        pad = "pad=1280:720:690:(oh-ih)/2:color=0x06101c"
+        accents = (
+            "drawbox=x=58:y=95:w=545:h=470:color=0x0a2238@0.96:t=fill,"
+            "drawbox=x=58:y=95:w='min(545,t*120)':h=7:color=0x21d4f4@1:t=fill,"
+            "drawbox=x=86:y=414:w='min(420,max(0,(t-1)*150))':h=82:color=0xff7a00@0.14:t=fill,"
+        )
+        texts = (
+            "drawtext=text='XPeX ACADEMY':fontcolor=0x21d4f4:fontsize=28:x=86:y=128,"
+            f"drawtext=text='{safe_title}':fontcolor=white:fontsize=40:x=86:y=196,"
+            f"drawtext=text='{safe_kw}':fontcolor=0xffa24c:fontsize=31:x=104:y=438:enable='gte(t,1)',"
+        )
+    elif variant % 3 == 1:
+        avatar_scale = "scale=610:610:force_original_aspect_ratio=decrease"
+        pad = "pad=1280:720:620:(oh-ih)/2:color=0x050d17"
+        accents = (
+            "drawbox=x=0:y=0:w=560:h=720:color=0x081b2c@1:t=fill,"
+            "drawbox=x=64:y=126:w='min(430,t*170)':h=5:color=0xff7a00@1:t=fill,"
+            "drawbox=x=64:y=495:w=435:h=88:color=0x0d344c@0.92:t=fill,"
+        )
+        texts = (
+            f"drawtext=text='{safe_kw}':fontcolor=0x21d4f4:fontsize=44:x=72:y=168,"
+            f"drawtext=text='{safe_title}':fontcolor=white:fontsize=32:x=72:y=260,"
+            "drawtext=text='IDEIA-CHAVE':fontcolor=0xffb36b:fontsize=22:x=88:y=526,"
+        )
+    else:
+        avatar_scale = "scale=470:470:force_original_aspect_ratio=decrease"
+        pad = "pad=1280:720:760:140:color=0x06101c"
+        accents = (
+            "drawbox=x=54:y=74:w=650:h=560:color=0x081d30@0.98:t=fill,"
+            "drawbox=x='54+mod(t*85,560)':y=606:w=90:h=4:color=0x21d4f4@0.9:t=fill,"
+            "drawbox=x=82:y=414:w=540:h=116:color=0x0d344c@0.88:t=fill,"
+        )
+        texts = (
+            "drawtext=text='AGORA ENTENDA':fontcolor=0x21d4f4:fontsize=24:x=88:y=110,"
+            f"drawtext=text='{safe_title}':fontcolor=white:fontsize=38:x=88:y=184,"
+            f"drawtext=text='{safe_kw}':fontcolor=0xff9a3d:fontsize=36:x=104:y=451,"
+        )
+
+    vf = (
+        f"{avatar_scale},{pad},"
+        f"{accents}{texts}"
+        f"zoompan=z='1.0+0.006*sin(on/18)':x='iw/2-(iw/zoom/2)+2*sin(on/13)':y='ih/2-(ih/zoom/2)+2*sin(on/19)':d={frames}:s=1280x720:fps=30,"
+        "format=yuv420p"
+    )
+    subprocess.run(
+        [ffmpeg, "-y", "-loop", "1", "-i", str(avatar), "-i", str(audio),
+         "-vf", vf, "-t", f"{seconds:.3f}", "-r", "30",
+         "-map", "0:v:0", "-map", "1:a:0",
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output)],
+        check=True, capture_output=True, text=True, timeout=max(180, int(seconds*6)),
+    )
+
+
+def _dynamic_support_chunk(
+    task_dir: Path,
+    base_image: Path,
+    avatar: Path | None,
+    audio: Path,
+    output: Path,
+    seconds: float,
+    title: str,
+    keyword: str,
+    variant: int,
+) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    safe_title = _safe_drawtext(title, 52)
+    safe_kw = _safe_drawtext(keyword.upper(), 24)
+    frames = max(60, int(seconds * 30))
+
+    if variant % 3 == 0:
+        motion = f"zoompan=z='min(zoom+0.0015,1.11)':x='iw/2-(iw/zoom/2)+on*0.25':y='ih/2-(ih/zoom/2)':d={frames}:s=1280x720:fps=30"
+    elif variant % 3 == 1:
+        motion = f"zoompan=z='min(zoom+0.0013,1.10)':x='iw/2-(iw/zoom/2)-on*0.22':y='ih/2-(ih/zoom/2)':d={frames}:s=1280x720:fps=30"
+    else:
+        motion = f"zoompan=z='1.05+0.025*sin(on/24)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)+4*sin(on/20)':d={frames}:s=1280x720:fps=30"
+
+    common = (
+        f"scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,{motion},"
+        "drawbox=x=0:y=0:w=1280:h=86:color=0x04101c@0.84:t=fill,"
+        f"drawtext=text='{safe_title}':fontcolor=white:fontsize=34:x=48:y=24,"
+        f"drawbox=x='48+mod(t*120,930)':y=650:w=120:h=5:color=0x21d4f4@0.9:t=fill,"
+        f"drawbox=x=54:y=535:w='min(500,max(0,(t-0.7)*180))':h=82:color=0x06101c@0.88:t=fill,"
+        f"drawtext=text='{safe_kw}':fontcolor=0xff9a3d:fontsize=30:x=76:y=558:enable='gte(t,0.7)'"
+    )
+
+    if avatar and avatar.is_file() and variant % 2 == 1:
+        fc = (
+            f"[0:v]{common}[base];"
+            "[2:v]scale=180:180:force_original_aspect_ratio=decrease,"
+            "pad=190:190:(ow-iw)/2:(oh-ih)/2:color=0x07111f[av];"
+            "[base][av]overlay=x=W-w-34:y=H-h-28:shortest=1[v]"
+        )
+        cmd = [ffmpeg, "-y", "-loop", "1", "-i", str(base_image), "-i", str(audio), "-loop", "1", "-i", str(avatar),
+               "-filter_complex", fc, "-map", "[v]", "-map", "1:a:0", "-t", f"{seconds:.3f}"]
+    else:
+        cmd = [ffmpeg, "-y", "-loop", "1", "-i", str(base_image), "-i", str(audio),
+               "-vf", common, "-map", "0:v:0", "-map", "1:a:0", "-t", f"{seconds:.3f}"]
+
+    cmd += ["-r","30","-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p",
+            "-c:a","aac","-b:a","160k","-movflags","+faststart",str(output)]
+    subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(180, int(seconds*6)))
+
+
+def _render_dynamic_scene(
+    task_dir: Path,
+    kind: str,
+    title: str,
+    scene_script: str,
+    audio: Path,
+    duration: float,
+    idx: int,
+    avatar: Path | None,
+) -> tuple[Path, str]:
+    """Premium compositor: cut every ~5-7s, alternate layouts, kinetic keywords, no long static shots."""
+    chunk_target = 6.0
+    count = max(2, int(math.ceil(duration / chunk_target)))
+    chunk_duration = duration / count
+    words = _keywords(scene_script, max(3, count))
+    clips: list[Path] = []
+
+    base_slide = None
+    if kind == "support_visual":
+        base_slide = _branded_slide(task_dir, title, scene_script, idx)
+
+    for part in range(count):
+        start = part * chunk_duration
+        seg_dur = duration - start if part == count - 1 else chunk_duration
+        seg_audio = task_dir / f"scene-{idx+1:02d}-part-{part+1:02d}.mp3"
+        seg_video = task_dir / f"scene-{idx+1:02d}-part-{part+1:02d}.mp4"
+        _trim_audio(audio, seg_audio, start, seg_dur)
+        keyword = words[part % len(words)]
+
+        if kind == "talking_head" and avatar and avatar.is_file():
+            # Try true lip-sync only on short chunks. Fallback becomes a deliberately edited presenter shot.
+            ok, engine = render_lipsync(avatar, seg_audio, seg_video)
+            if not ok:
+                _dynamic_presenter_chunk(avatar, seg_audio, seg_video, seg_dur, title, keyword, part)
+                engine = "premium_presenter_motion"
+        else:
+            _dynamic_support_chunk(
+                task_dir, base_slide, avatar, seg_audio, seg_video, seg_dur,
+                title, keyword, part
+            )
+            engine = "premium_support_motion"
+
+        if seg_video.is_file() and seg_video.stat().st_size > 30_000:
+            clips.append(seg_video)
+
+    if not clips:
+        raise AcademyLessonError(f"Falha no compositor dinâmico da cena {idx+1}")
+
+    scene_out = task_dir / f"scene-{idx+1:02d}-premium.mp4"
+    _concat_av_scenes(task_dir, clips, scene_out)
+    return scene_out, ("musetalk_v15" if any("musetalk" in p.name for p in []) else engine)
+
+
 def _concat_av_scenes(task_dir: Path, scenes: list[Path], output: Path) -> None:
     ffmpeg = shutil.which("ffmpeg")
     listing = task_dir / "academy-scenes.txt"
@@ -507,25 +709,17 @@ def create_academy_lesson(
         shutil.copy2(scene_audio, preserved_audio)
 
         kind = scene.get("type", "talking_head")
-        visual_path = None
-        engine = ""
-        if kind == "talking_head" and avatar_enabled and avatar.is_file():
-            scene_video, engine = _render_talking_head_scene(
-                task_dir, avatar, preserved_audio, scene_duration, scene.get("title") or "Aula", idx
-            )
-            lipsync_modes.add(engine)
-        else:
-            visual_path = _branded_slide(
-                task_dir,
-                scene.get("title") or f"Parte {idx+1}",
-                scene_script,
-                idx,
-            )
-            scene_video = _render_support_scene(
-                task_dir, visual_path, avatar if avatar_enabled else None, preserved_audio,
-                scene_duration, scene.get("title") or f"Parte {idx+1}", idx
-            )
-            engine = "support_visual"
+        scene_video, engine = _render_dynamic_scene(
+            task_dir=task_dir,
+            kind=kind,
+            title=scene.get("title") or f"Parte {idx+1}",
+            scene_script=scene_script,
+            audio=preserved_audio,
+            duration=scene_duration,
+            idx=idx,
+            avatar=avatar if avatar_enabled and avatar.is_file() else None,
+        )
+        lipsync_modes.add(engine)
 
         if not scene_video.is_file() or scene_video.stat().st_size < 50_000:
             raise AcademyLessonError(f"Falha ao renderizar cena {idx+1}")
@@ -568,9 +762,9 @@ def create_academy_lesson(
             else "none"
         ),
         "output": str(final),
-        "engine": "xpex_instructor_engine_v3",
-        "quality_profile": "academy_clean_no_gibberish",
-        "support_visual_policy": "deterministic_branded_slides",
+        "engine": "xpex_premium_dynamic_compositor_v4",
+        "quality_profile": "academy_premium_dynamic_4_to_7_second_cuts",
+        "support_visual_policy": "kinetic_branded_slides_and_presenter_intercuts",
     }
     (task_dir / "lesson-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return final, manifest
