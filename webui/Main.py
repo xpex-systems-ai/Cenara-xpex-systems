@@ -356,22 +356,10 @@ def require_private_operator_token() -> None:
     st.stop()
 
 
-require_private_operator_token()
+# Production UX: one screen, no credential gate and no route switching.
 inject_official_theme()
-
-_cenara_view = str(st.query_params.get("view", "home") or "home").strip().lower()
-if _cenara_view == "home":
-    render_official_home()
-    st.stop()
-if _cenara_view in {"projects", "library", "models", "media", "settings"}:
-    render_official_section(_cenara_view)
-    st.stop()
-if _cenara_view != "studio":
-    st.query_params["view"] = "home"
-    st.rerun()
-
-render_official_studio_header()
-_render_seedance_first_flight_preview()
+if st.query_params:
+    st.query_params.clear()
 
 # 定义资源目录
 font_dir = os.path.join(root_dir, "resource", "fonts")
@@ -1537,6 +1525,9 @@ def _cenara_provider_enabled(provider: str) -> bool:
     if provider == "coverr":
         return _has_configured_secret(_provider_secret_list("coverr", config_value=config.app.get("coverr_api_keys")))
     if provider == "frontier_ai":
+        frontier_provider = (os.getenv("CENARA_FRONTIER_PROVIDER", "huggingface") or "huggingface").strip().lower()
+        if frontier_provider == "huggingface":
+            return _has_configured_secret(os.getenv("HF_TOKEN", ""))
         return _has_configured_secret(os.getenv("FAL_KEY", ""))
     return False
 
@@ -1765,116 +1756,147 @@ def cenara_render_provider_center(readiness):
                 st.metric(label, value)
 
 def cenara_render_command_center(params, selected_tts_server):
-    st.markdown(render_cenara_topbar(), unsafe_allow_html=True)
-    cenara_render_hero_and_stepper()
-    readiness = cenara_provider_readiness(params.video_source, selected_tts_server)
-    cenara_render_provider_center(readiness)
-    left, middle, right = st.columns([1.05, 1.05, 0.9], gap="large")
-    with left:
-        st.markdown('<div class="cenara-workspace-card"><div class="cenara-card-kicker">01 · AI Briefing</div><h3>Direção criativa</h3><p class="cenara-card-copy">Gere roteiro, hook, CTA, variações e palavras-chave usando o motor real configurado.</p></div>', unsafe_allow_html=True)
-        with st.form("cenara_real_creator_form"):
-            tema = st.text_input("Tema do vídeo", value=st.session_state.get("video_subject", ""), key="cenara_tema")
-            publico = st.text_input("Público-alvo", key="cenara_publico")
-            promessa = st.text_input("Promessa", key="cenara_promessa")
-            nicho = st.text_input("Nicho", key="cenara_nicho")
-            cta = st.text_input("CTA", key="cenara_cta")
-            roteiro_manual = st.text_area("Roteiro manual opcional", value=st.session_state.get("video_script", ""), key="cenara_roteiro_manual")
-            palavras_chave = st.text_area("Palavras-chave opcionais", value=st.session_state.get("video_terms", ""), key="cenara_palavras_chave")
-            formato = st.selectbox("Formato", ["9:16", "1:1", "16:9"], key="cenara_formato")
-            duracao = st.selectbox("Duração", [3, 4, 5, 6, 7, 8, 9, 10], key="cenara_duracao")
-            _video_sources = ["frontier_ai", "pexels", "pixabay", "coverr", "local"]
-            fonte_video = st.selectbox(
-                "Fonte do vídeo",
-                _video_sources,
-                index=_video_sources.index(params.video_source if params.video_source in _video_sources else "frontier_ai"),
-                format_func=lambda value: {
-                    "frontier_ai": "Frontier AI · Hugging Face / Open Models",
-                    "pexels": "Pexels",
-                    "pixabay": "Pixabay",
-                    "coverr": "Coverr",
-                    "local": "Mídia local",
-                }.get(value, value),
-                key="cenara_fonte_video",
-            )
-            voz_tts = st.text_input("Voz", value=params.voice_name or config.ui.get("voice_name", ""), key="cenara_voz_tts")
-            ativar_legendas = st.checkbox("Ativar Legendas", value=bool(getattr(params, "subtitle_enabled", True)), key="cenara_ativar_legendas")
-            submitted = st.form_submit_button("Gerar vídeo real", use_container_width=True, type="primary")
-    with middle:
-        subtitle_label = "Ativas" if getattr(params, "subtitle_enabled", True) else "Desativadas"
-        st.markdown(f'<div class="cenara-workspace-card"><div class="cenara-card-kicker">02 · Build Engine</div><h3>Mídia, voz e estilo</h3><p class="cenara-card-copy">Use Frontier AI, Pexels, Pixabay, Coverr ou mídia local; ajuste TTS, áudio, formato e legendas nos controles avançados abaixo.</p><div class="cenara-timeline"><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Fonte de mídia</span><strong>{params.video_source or "auto"}</strong></div><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Voz</span><strong>{config.ui.get("tts_server", "azure")}</strong></div><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Legendas</span><strong>{subtitle_label}</strong></div></div></div>', unsafe_allow_html=True)
-        st.info("Os controles completos de mídia, voz, música, subtítulos, transições e renderização continuam disponíveis em Controles avançados MoneyPrinterTurbo.")
-    cenara_clear_stale_generation_lock(show_message=True)
-    if st.session_state.pop("cenara_stale_lock_released", False):
-        st.info("A geração anterior foi interrompida pelo servidor; o bloqueio foi liberado com segurança.")
-    lock_status = cenara_generation_lock_status()
-    if lock_status:
-        created = float(lock_status.get("created_at_epoch", time.time()))
-        age = max(0, int(time.time() - created))
-        ttl = cenara_runtime_limits().generation_lock_ttl_seconds
-        freshness = "fresh" if age <= ttl else "stale"
-        st.warning(f"memory_guard_active: task_id={lock_status.get('task_id', 'unknown')} age={age}s status={freshness}. Aguarde finalizar; se ficar stale, use Limpar geração travada.")
-        if age > ttl and st.button("Limpar geração travada", key="cenara_clear_stale_lock_button"):
-            cenara_clear_stale_generation_lock(show_message=True)
-            st.rerun()
+    st.markdown("""
+    <section class="cenara-hero">
+      <div class="cenara-eyebrow">Cenara · Estúdio Oficial</div>
+      <h1>Digite o prompt.<br>Receba o vídeo.</h1>
+      <div class="cenara-subtitle">Uma tela só. Sem rotas, sem formulário técnico e sem pedir chave na interface.</div>
+      <div class="cenara-badges">
+        <span class="cenara-badge">OpenRouter · direção</span>
+        <span class="cenara-badge">Hugging Face · vídeo</span>
+        <span class="cenara-badge">FFmpeg · fallback real</span>
+      </div>
+    </section>
+    """, unsafe_allow_html=True)
+
+    prompt = st.text_area(
+        "Prompt do vídeo",
+        height=230,
+        placeholder=(
+            "Ex.: Crie um vídeo cinematográfico de 10 segundos apresentando a XPeX Academy "
+            "como uma escola de IA futurista, com iluminação azul e laranja, câmera suave, "
+            "ambiente premium e sensação de tecnologia de última geração."
+        ),
+        key="cenara_single_prompt",
+    )
+
+    controls = st.columns(3)
+    with controls[0]:
+        style = st.selectbox(
+            "Estilo",
+            ["Cinemático", "Institucional", "Comercial", "Educativo", "Redes Sociais"],
+            key="cenara_single_style",
+        )
+    with controls[1]:
+        formato = st.selectbox("Formato", ["16:9", "9:16", "1:1"], key="cenara_single_format")
+    with controls[2]:
+        duracao = st.selectbox(
+            "Duração",
+            [5, 8, 10, 15],
+            index=2,
+            format_func=lambda value: f"{value} segundos",
+            key="cenara_single_duration",
+        )
+
+    st.markdown(
+        '<div class="cenara-stepper">'
+        '<div class="cenara-step active">Prompt</div>'
+        '<div class="cenara-step active">Direção IA</div>'
+        '<div class="cenara-step active">Render</div>'
+        '<div class="cenara-step">Preview</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    submitted = st.button(
+        "✨ Gerar vídeo agora",
+        use_container_width=True,
+        type="primary",
+        disabled=not bool((prompt or "").strip()),
+        key="cenara_single_generate",
+    )
+
     if submitted:
-        if lock_status:
+        cenara_clear_stale_generation_lock(show_message=False)
+        if cenara_generation_lock_status():
+            st.warning("Já existe uma geração em andamento. Aguarde alguns instantes.")
             st.stop()
-        form = {"tema": tema, "publico": publico, "promessa": promessa, "nicho": nicho, "cta": cta, "manual_script": roteiro_manual, "manual_keywords": palavras_chave, "roteiro_manual": roteiro_manual, "palavras_chave": palavras_chave, "formato": formato, "duracao": duracao, "fonte_video": fonte_video, "voz_tts": voz_tts}
-        payload = cenara_build_generation_payload(form, params)
-        payload.subtitle_enabled = bool(ativar_legendas)
-        st.session_state["video_subject"] = payload.video_subject
-        st.session_state["video_script"] = payload.video_script
-        st.session_state["video_terms"] = payload.video_terms
-        readiness = cenara_provider_readiness(payload.video_source, selected_tts_server)
-        if payload.voice_name or payload.custom_audio_file:
-            readiness["Voz/TTS"] = ("configured", "voz do formulário" if payload.voice_name else "áudio personalizado")
-        errors = cenara_validate_generation_payload(payload, readiness=readiness)
-        if errors:
-            for error in errors:
-                st.error(error)
-            st.stop()
+
         task_id = str(uuid4())
-        st.info(f"Geração iniciada. Acompanhe o progresso abaixo. task_id: {task_id}")
-        status_box = st.status("validando provedores", expanded=True)
-        for stage in CENARA_PIPELINE_STAGES[:-2]:
-            status_box.write(stage)
+        clean_prompt = _cenara_clean_text(prompt)
+        params.video_subject = clean_prompt
+        params.video_aspect = {
+            "16:9": VideoAspect.landscape,
+            "9:16": VideoAspect.portrait,
+            "1:1": VideoAspect.portrait,
+        }.get(formato, VideoAspect.landscape)
+        params.video_clip_duration = int(duracao)
+        params.video_source = "frontier_ai"
+        params.video_count = 1
+        params.subtitle_enabled = False
+        params.video_language = "pt-BR"
+        params.video_script = clean_prompt
+
+        try:
+            generated_script = llm.generate_script(
+                video_subject=f"{clean_prompt}. Estilo: {style}. Duração alvo: {duracao}s.",
+                language="pt-BR",
+                paragraph_number=1,
+                video_script_prompt="Roteiro curto, natural e objetivo. Retorne apenas a narração.",
+                custom_system_prompt="",
+            )
+            if generated_script and not _cenara_is_provider_failure_text(generated_script):
+                params.video_script = generated_script
+        except Exception as exc:
+            logger.warning(f"Cenara director fallback: {type(exc).__name__}")
+
+        params.video_terms = ", ".join(cenara_derive_local_keywords(params, params.video_script))
+        st.session_state["video_subject"] = params.video_subject
+        st.session_state["video_script"] = params.video_script
+        st.session_state["video_terms"] = params.video_terms
+        st.session_state["cenara_latest_task_id"] = task_id
+
+        status_box = st.status("Cenara está criando seu vídeo...", expanded=True)
+        status_box.write("prompt_ready")
+        status_box.write("director_ready")
         try:
             with cenara_single_flight_generation_lock(task_id):
                 tm.prune_cenara_storage(active_task_id=task_id)
-                result = cenara_trigger_real_generation(task_id, payload, status_box=status_box)
-                if result.get("success"):
-                    tm.prune_cenara_storage(active_task_id=task_id)
+                result = cenara_trigger_real_generation(task_id, params, status_box=status_box)
         except RuntimeError:
-            st.warning("memory_guard_active: geração já em execução; tentativa bloqueada com segurança.")
+            status_box.update(label="Geração já em andamento", state="error")
             st.stop()
-        if result["success"]:
+
+        if result.get("success"):
             output_path = Path(result["output_path"])
-            status_box.update(label="finalizado", state="complete")
             st.session_state["cenara_latest_mp4"] = str(output_path)
-            st.session_state["cenara_latest_task_id"] = task_id
-            cenara_save_project_record(task_id, payload, output_path, "completed")
-            st.success(f"render_completed_low_memory: Vídeo real gerado com sucesso. task_id: {task_id}")
-            st.caption(f"Arquivo pronto: {output_path.name}")
+            cenara_save_project_record(task_id, params, output_path, "completed")
+            status_box.update(label="Vídeo pronto", state="complete", expanded=False)
         else:
-            status_box.write("falhou")
-            status_box.update(label="falhou", state="error")
-            cenara_save_project_record(task_id, payload, None, "failed", result.get("error", "Falha desconhecida"))
-            st.error(result.get("error") or "A geração falhou sem mensagem detalhada.")
-            if result.get("next_action"):
-                st.info(result["next_action"])
-    with right:
-        st.markdown('<div class="cenara-workspace-card"><div class="cenara-card-kicker">03 · Preview & Output</div><h3>Render real</h3></div>', unsafe_allow_html=True)
+            cenara_save_project_record(task_id, params, None, "failed", result.get("error", "Falha desconhecida"))
+            status_box.update(label="Falha na geração", state="error", expanded=True)
+            st.error(result.get("error") or "Nenhum MP4 foi criado.")
+
+    left, right = st.columns([1.4, 0.6], gap="large")
+    with left:
+        st.markdown("### Prévia")
         latest_path = Path(st.session_state["cenara_latest_mp4"]) if st.session_state.get("cenara_latest_mp4") else None
         cenara_render_real_preview(latest_path)
-    recent_projects = cenara_load_projects()[:6]
-    if recent_projects:
-        st.subheader("Projetos recentes")
-        project_cols = st.columns(3)
-        for index, project in enumerate(recent_projects):
-            with project_cols[index % 3]:
-                st.markdown(f"""<div class="cenara-flow-card"><div class="cenara-flow-title">{project.get('title','Projeto Cenara')[:80]}</div><div class="cenara-flow-copy">{project.get('status','')} · {project.get('source','')} · {project.get('created_at','')}</div><div class="cenara-flow-copy">{project.get('error','')}</div></div>""", unsafe_allow_html=True)
-    cenara_render_recent_videos()
 
+    with right:
+        st.markdown("### Últimos projetos")
+        projects = cenara_load_projects()[:5]
+        if not projects:
+            st.caption("Nenhum projeto gerado ainda.")
+        for project in projects:
+            st.markdown(
+                f"**{project.get('title','Projeto Cenara')[:48]}**  \\n"
+                f"{project.get('status','-')} · {project.get('source','-')}"
+            )
+
+    with st.expander("Status técnico", expanded=False):
+        readiness = cenara_provider_readiness("frontier_ai", selected_tts_server)
+        cenara_render_provider_center(readiness)
 
 def get_all_fonts():
     fonts = []
@@ -2498,6 +2520,7 @@ uploaded_files = []
 uploaded_audio_file = None
 
 cenara_render_command_center(params, config.ui.get("tts_server", "azure-tts-v1"))
+st.stop()
 
 with st.expander("Controles avançados MoneyPrinterTurbo", expanded=False):
 
