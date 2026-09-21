@@ -173,8 +173,6 @@ h1, h2, h3 { color: var(--cenara-text) !important; }
 @media (max-width: 1100px) { .cenara-dashboard { grid-template-columns:1fr; } .cenara-sidebar { position:relative; min-height:auto; } .cenara-grid, .cenara-metrics, .cenara-modules { grid-template-columns:1fr; } .cenara-project-grid { grid-template-columns:1fr; } }
 </style>
 """
-_render_seedance_first_flight_preview()
-
 st.markdown(streamlit_style, unsafe_allow_html=True)
 
 
@@ -309,6 +307,7 @@ def require_private_operator_token() -> None:
 
 
 require_private_operator_token()
+_render_seedance_first_flight_preview()
 
 # 定义资源目录
 font_dir = os.path.join(root_dir, "resource", "fonts")
