@@ -84,10 +84,11 @@ def _openrouter_lesson(topic: str, objective: str, minutes: int) -> dict:
 
     system = (
         "Você é o diretor pedagógico da XPeX Academy. Responda SOMENTE JSON válido com as chaves "
-        "title, script, sections. sections é uma lista de 6 a 8 objetos com title e visual. "
+        "title, script, sections. sections é uma lista de 6 a 8 objetos com type, title e visual. "
         f"O script deve ter aproximadamente {words} palavras, em português brasileiro, natural, didático, "
         "sem listas faladas longas, sem marketing exagerado e adequado para narração. "
-        "Cada visual deve ser um prompt em inglês para uma imagem educacional premium 16:9, sem texto, sem logos, "
+        "type deve alternar entre talking_head e support_visual, começando e terminando com talking_head. "
+"Cada visual deve ser um prompt em inglês para uma imagem educacional premium 16:9, sem texto, sem logos, "
         "com continuidade visual dark navy, cyan e orange. A aula precisa ter abertura, explicação, exemplo, prática, "
         "alerta de uso responsável e fechamento."
     )
@@ -122,7 +123,7 @@ def _openrouter_lesson(topic: str, objective: str, minutes: int) -> dict:
             "title": _clean(data.get("title")) or fallback["title"],
             "script": script,
             "sections": [
-                {"title": _clean(x.get("title")) or f"Parte {idx+1}", "visual": _clean(x.get("visual"))}
+                {"type": _clean(x.get("type")) or ("talking_head" if idx in (0, len(sections)-1) or idx % 2 == 0 else "support_visual"), "title": _clean(x.get("title")) or f"Parte {idx+1}", "visual": _clean(x.get("visual"))}
                 for idx, x in enumerate(sections[:8]) if isinstance(x, dict)
             ],
         }
@@ -251,6 +252,144 @@ def _fallback_slide(task_dir: Path, title: str, seconds: float, width: int, heig
     return out
 
 
+
+
+def _split_script_for_sections(script: str, count: int) -> list[str]:
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", script or "") if s.strip()]
+    if not sentences:
+        return [script or ""] * max(1, count)
+    buckets = [[] for _ in range(max(1, count))]
+    weights = [0] * len(buckets)
+    for sentence in sentences:
+        idx = min(range(len(buckets)), key=lambda i: weights[i])
+        buckets[idx].append(sentence)
+        weights[idx] += max(1, len(sentence.split()))
+    return [" ".join(bucket).strip() for bucket in buckets]
+
+
+def _normalize_timeline(sections: list[dict], script: str) -> list[dict]:
+    if not sections:
+        sections = [{"type": "talking_head", "title": "Aula", "visual": ""}]
+    parts = _split_script_for_sections(script, len(sections))
+    timeline = []
+    for idx, section in enumerate(sections):
+        kind = _clean(section.get("type")).lower()
+        if kind not in {"talking_head", "support_visual"}:
+            kind = "talking_head" if idx in (0, len(sections)-1) or idx % 2 == 0 else "support_visual"
+        if idx == 0 or idx == len(sections) - 1:
+            kind = "talking_head"
+        timeline.append({
+            "type": kind,
+            "title": _clean(section.get("title")) or f"Parte {idx+1}",
+            "visual": _clean(section.get("visual")),
+            "script": parts[idx] if idx < len(parts) else "",
+        })
+    return timeline
+
+
+def _render_presenter_motion(avatar: Path, audio: Path, output: Path, seconds: float, title: str) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise AcademyLessonError("FFmpeg ausente")
+    safe = _safe_drawtext(title, 58)
+    frames = max(90, int(seconds * 30))
+    vf = (
+        "crop=iw:ih-28:0:0,"
+        "scale=1280:720:force_original_aspect_ratio=increase,"
+        "crop=1280:720,"
+        f"zoompan=z='min(zoom+0.00075,1.08)':x='iw/2-(iw/zoom/2)+8*sin(on/18)':y='ih/2-(ih/zoom/2)+5*sin(on/24)':d={frames}:s=1280x720:fps=30,"
+        "drawbox=x=0:y=0:w=iw:h=ih*0.14:color=0x06111f@0.72:t=fill,"
+        f"drawtext=text='XPeX Academy':fontcolor=0x21d4f4:fontsize=30:x=55:y=32,"
+        f"drawtext=text='{safe}':fontcolor=white:fontsize=34:x=55:y=78,"
+        "format=yuv420p"
+    )
+    subprocess.run(
+        [ffmpeg, "-y", "-loop", "1", "-i", str(avatar), "-i", str(audio),
+         "-vf", vf, "-t", f"{seconds:.3f}", "-r", "30",
+         "-map", "0:v:0", "-map", "1:a:0",
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output)],
+        check=True, capture_output=True, text=True, timeout=max(240, int(seconds * 5)),
+    )
+
+
+def _try_wav2lip(avatar: Path, audio: Path, output: Path) -> bool:
+    wav2lip_dir = Path(os.getenv("CENARA_WAV2LIP_DIR", "").strip())
+    checkpoint = Path(os.getenv("CENARA_WAV2LIP_CHECKPOINT", "").strip())
+    python_bin = os.getenv("CENARA_WAV2LIP_PYTHON", "python").strip() or "python"
+    if not wav2lip_dir.is_dir() or not checkpoint.is_file():
+        return False
+    inference = wav2lip_dir / "inference.py"
+    if not inference.is_file():
+        return False
+    try:
+        subprocess.run(
+            [python_bin, str(inference), "--checkpoint_path", str(checkpoint),
+             "--face", str(avatar), "--audio", str(audio), "--outfile", str(output)],
+            cwd=str(wav2lip_dir), check=True, capture_output=True, text=True, timeout=900,
+        )
+        return output.is_file() and output.stat().st_size > 100_000
+    except Exception as exc:
+        logger.warning(f"Wav2Lip unavailable, presenter fallback used: {type(exc).__name__}")
+        return False
+
+
+def _render_talking_head_scene(task_dir: Path, avatar: Path, audio: Path, seconds: float, title: str, idx: int) -> tuple[Path, str]:
+    out = task_dir / f"scene-{idx+1:02d}-talking.mp4"
+    if _try_wav2lip(avatar, audio, out):
+        return out, "wav2lip"
+    _render_presenter_motion(avatar, audio, out, seconds, title)
+    return out, "presenter_motion"
+
+
+def _render_support_scene(task_dir: Path, image: Path | None, avatar: Path | None, audio: Path, seconds: float, title: str, idx: int) -> Path:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise AcademyLessonError("FFmpeg ausente")
+    base = task_dir / f"scene-{idx+1:02d}-support-base.mp4"
+    if image and image.is_file():
+        _render_visual_clip(image, base, seconds, 1280, 720, idx)
+    else:
+        base = _fallback_slide(task_dir, title, seconds, 1280, 720, idx)
+
+    out = task_dir / f"scene-{idx+1:02d}-support.mp4"
+    safe = _safe_drawtext(title, 58)
+    if avatar and avatar.is_file():
+        fc = (
+            "[0:v]scale=1280:720[base];"
+            "[2:v]crop=iw:ih-28:0:0,scale=210:210,format=rgba[av];"
+            "[base][av]overlay=x=W-w-32:y=H-h-30:shortest=1[tmp];"
+            f"[tmp]drawbox=x=0:y=0:w=iw:h=74:color=0x06111f@0.72:t=fill,"
+            f"drawtext=text='{safe}':fontcolor=white:fontsize=32:x=42:y=22[v]"
+        )
+        cmd = [ffmpeg, "-y", "-i", str(base), "-i", str(audio), "-loop", "1", "-i", str(avatar),
+               "-filter_complex", fc, "-map", "[v]", "-map", "1:a:0", "-t", f"{seconds:.3f}"]
+    else:
+        fc = f"drawbox=x=0:y=0:w=iw:h=74:color=0x06111f@0.72:t=fill,drawtext=text='{safe}':fontcolor=white:fontsize=32:x=42:y=22"
+        cmd = [ffmpeg, "-y", "-i", str(base), "-i", str(audio), "-vf", fc,
+               "-map", "0:v:0", "-map", "1:a:0", "-t", f"{seconds:.3f}"]
+    cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out)]
+    subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(240, int(seconds * 5)))
+    return out
+
+
+def _concat_av_scenes(task_dir: Path, scenes: list[Path], output: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    listing = task_dir / "academy-scenes.txt"
+    listing.write_text("".join(f"file '{scene}'\n" for scene in scenes), encoding="utf-8")
+    first = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(output)]
+    copy = subprocess.run(first, capture_output=True, text=True, timeout=600)
+    if copy.returncode == 0 and output.is_file() and output.stat().st_size > 100_000:
+        return
+    subprocess.run(
+        [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listing),
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(output)],
+        check=True, capture_output=True, text=True, timeout=900,
+    )
+
+
 def create_academy_lesson(
     topic: str,
     objective: str = "",
@@ -268,92 +407,93 @@ def create_academy_lesson(
     task_dir.mkdir(parents=True, exist_ok=True)
 
     lesson = _openrouter_lesson(topic, objective, minutes)
-    audio, audio_duration = _synthesize(lesson["script"], task_dir, voice_name, voice_rate)
-    sections = lesson["sections"] or [{"title": "Aula", "visual": topic}]
-    section_seconds = max(10.0, audio_duration / len(sections))
+    timeline = _normalize_timeline(lesson.get("sections") or [], lesson.get("script") or "")
     width, height = 1280, 720
 
     avatar = task_dir / "academy-avatar.jpg"
     if avatar_enabled:
         avatar_prompt = (
-            "professional Brazilian AI instructor, friendly adult educator, chest-up portrait, dark navy smart casual outfit, "
-            "modern futuristic education studio, cyan and warm orange rim light, clean background, realistic photography, "
-            "consistent presenter identity, no text, no logo"
+            "professional Brazilian AI instructor, friendly adult educator, chest-up portrait, looking directly at camera, "
+            "dark navy smart casual outfit, premium futuristic education studio, cyan and warm orange rim light, "
+            "clean background, realistic photography, same presenter identity, no text, no logo"
         )
-        _pollinations_image(avatar_prompt, avatar, 640, 640, 1447)
+        if not _pollinations_image(avatar_prompt, avatar, 768, 768, 1447):
+            avatar_enabled = False
 
-    clips = []
-    base_seed = 7301
-    for idx, section in enumerate(sections):
-        visual = task_dir / f"visual-{idx+1:02d}.jpg"
-        prompt = (
-            (section.get("visual") or topic)
-            + ". XPeX Academy educational film, dark navy, cyan and orange accents, professional, realistic, 16:9, no text, no logo."
-        )
-        ok = _pollinations_image(prompt, visual, 1024, 576, base_seed + idx)
-        clip = task_dir / f"visual-{idx+1:02d}.mp4"
-        if ok:
-            try:
-                _render_visual_clip(visual, clip, section_seconds, width, height, idx)
-            except Exception:
-                clip = _fallback_slide(task_dir, section.get("title") or f"Parte {idx+1}", section_seconds, width, height, idx)
+    rendered_scenes: list[Path] = []
+    scene_manifest = []
+    lipsync_modes = set()
+    visual_seed = 9107
+
+    for idx, scene in enumerate(timeline):
+        scene_script = _clean(scene.get("script"))
+        if not scene_script:
+            continue
+        scene_audio, scene_duration = _synthesize(scene_script, task_dir, voice_name, voice_rate)
+        # _synthesize always writes the same filename; preserve each scene before next iteration.
+        preserved_audio = task_dir / f"scene-{idx+1:02d}.mp3"
+        shutil.copy2(scene_audio, preserved_audio)
+
+        kind = scene.get("type", "talking_head")
+        visual_path = None
+        engine = ""
+        if kind == "talking_head" and avatar_enabled and avatar.is_file():
+            scene_video, engine = _render_talking_head_scene(
+                task_dir, avatar, preserved_audio, scene_duration, scene.get("title") or "Aula", idx
+            )
+            lipsync_modes.add(engine)
         else:
-            clip = _fallback_slide(task_dir, section.get("title") or f"Parte {idx+1}", section_seconds, width, height, idx)
-        clips.append(clip)
+            visual_path = task_dir / f"support-{idx+1:02d}.jpg"
+            visual_prompt = (
+                (scene.get("visual") or topic)
+                + ". XPeX Academy educational visual, clean infographic-like composition, dark navy, cyan and orange accents, "
+                "professional, realistic, 16:9, no text, no logo, directly relevant to the lesson concept."
+            )
+            if not _pollinations_image(visual_prompt, visual_path, 1024, 576, visual_seed + idx):
+                visual_path = None
+            scene_video = _render_support_scene(
+                task_dir, visual_path, avatar if avatar_enabled else None, preserved_audio,
+                scene_duration, scene.get("title") or f"Parte {idx+1}", idx
+            )
+            engine = "support_visual"
 
-    ffmpeg = shutil.which("ffmpeg")
-    listing = task_dir / "lesson-clips.txt"
-    listing.write_text("".join(f"file '{p}'\n" for p in clips), encoding="utf-8")
-    visuals = task_dir / "lesson-visuals.mp4"
-    subprocess.run(
-        [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listing), "-t", f"{audio_duration:.3f}",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
-         "-r", "30", "-movflags", "+faststart", str(visuals)],
-        check=True, capture_output=True, text=True, timeout=max(300, int(audio_duration * 3)),
-    )
+        if not scene_video.is_file() or scene_video.stat().st_size < 50_000:
+            raise AcademyLessonError(f"Falha ao renderizar cena {idx+1}")
+        rendered_scenes.append(scene_video)
+        scene_manifest.append({
+            "index": idx + 1,
+            "type": kind,
+            "title": scene.get("title"),
+            "duration": round(scene_duration, 2),
+            "engine": engine,
+            "visual": scene.get("visual"),
+        })
 
-    srt = task_dir / "lesson.srt"
-    _make_srt(lesson["script"], audio_duration, srt)
+    if not rendered_scenes:
+        raise AcademyLessonError("Nenhuma cena da aula foi renderizada")
+
     final = task_dir / "xpex-academy-lesson.mp4"
-
-    if avatar_enabled and avatar.is_file() and avatar.stat().st_size > 20_000:
-        filter_complex = (
-            "[0:v]scale=1280:720[base];"
-            "[2:v]crop=iw:ih-28:0:0,scale=235:235,format=rgba,"
-            "fade=t=in:st=0:d=0.5:alpha=1[av];"
-            "[base][av]overlay=x=W-w-38:y='H-h-34+8*sin(2*PI*t/4)':shortest=1[v]"
-        )
-        cmd = [
-            ffmpeg, "-y", "-i", str(visuals), "-i", str(audio), "-loop", "1", "-i", str(avatar),
-            "-filter_complex", filter_complex,
-            "-map", "[v]", "-map", "1:a:0", "-t", f"{audio_duration:.3f}",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(final),
-        ]
-    else:
-        cmd = [
-            ffmpeg, "-y", "-i", str(visuals), "-i", str(audio),
-            "-map", "0:v:0", "-map", "1:a:0", "-t", f"{audio_duration:.3f}",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(final),
-        ]
-    subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(420, int(audio_duration * 4)))
-
+    _concat_av_scenes(task_dir, rendered_scenes, final)
     if not final.is_file() or final.stat().st_size < 100_000:
         raise AcademyLessonError("MP4 final não foi criado")
 
+    total_duration = _audio_duration(final)
+    full_srt = task_dir / "lesson.srt"
+    _make_srt(lesson.get("script") or "", max(total_duration, 1.0), full_srt)
+
     manifest = {
         "task_id": task_id,
-        "title": lesson["title"],
+        "title": lesson.get("title") or topic,
         "topic": topic,
         "objective": objective,
-        "script": lesson["script"],
-        "sections": sections,
+        "script": lesson.get("script") or "",
+        "timeline": scene_manifest,
         "voice": voice_name,
-        "audio_duration": round(audio_duration, 2),
+        "audio_duration": round(total_duration, 2),
         "avatar_enabled": bool(avatar_enabled and avatar.is_file()),
+        "lipsync_mode": "wav2lip" if "wav2lip" in lipsync_modes else ("presenter_motion" if avatar_enabled else "none"),
         "output": str(final),
-        "engine": "xpex_academy_lesson_v1",
+        "engine": "xpex_instructor_engine_v2",
     }
     (task_dir / "lesson-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return final, manifest
