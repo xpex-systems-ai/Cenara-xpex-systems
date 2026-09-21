@@ -17,6 +17,7 @@ if str(ROOT) not in os.sys.path:
     os.sys.path.append(str(ROOT))
 
 from app.services.frontier_media import FrontierMediaError, generate_huggingface_video_file
+from app.services.academy_lesson import AcademyLessonError, create_academy_lesson
 
 STORAGE = ROOT / "storage"
 TASKS = STORAGE / "tasks"
@@ -352,31 +353,76 @@ def recent(limit=6):
 
 badges = [
     "OpenRouter pronto" if has("OPENROUTER_API_KEY") else "Diretor local",
-    "HF conectado" if has("HF_TOKEN") else "HF indisponível",
+    "Edge TTS pronto",
     "FFmpeg pronto" if shutil.which("ffmpeg") else "FFmpeg ausente",
-    "Sem login · sem rotas",
+    "Modo XPeX Academy",
 ]
 st.markdown('<div class="cz-top"><div class="cz-brand"><span>▶</span> CENARA</div><div class="cz-pills">' + ''.join('<span class="cz-pill">● '+x+'</span>' for x in badges) + '</div></div>', unsafe_allow_html=True)
-st.markdown('<div class="cz-hero"><h1>Digite a ideia.<br><span style="color:#19d3f3">A Cenara cria o vídeo.</span></h1><p>Sem chave na tela, sem menu técnico e sem rotas quebradas. Escreva o prompt e receba o MP4 no mesmo lugar.</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="cz-hero"><h1>Estúdio de Aulas<br><span style="color:#19d3f3">XPeX Academy.</span></h1><p>Crie aulas em blocos de 3 ou 4 minutos com roteiro, voz, visuais em movimento, avatar apresentador e MP4 pronto para publicar no curso.</p></div>', unsafe_allow_html=True)
+
+mode = st.radio("Modo de produção", ["Aula XPeX Academy", "Vídeo livre"], horizontal=True, label_visibility="collapsed")
 
 left,right=st.columns([1.2,1],gap="large")
 with left:
-    st.markdown('<div class="cz-card"><h2>Criar vídeo</h2><p style="color:#93a4b8">Descreva exatamente o vídeo que você quer.</p></div>',unsafe_allow_html=True)
-    prompt=st.text_area("Prompt do vídeo",height=220,placeholder="Ex.: Crie um vídeo cinematográfico apresentando a XPeX Academy como uma escola de IA futurista, com luz azul e laranja, câmera suave e atmosfera premium.")
-    a,b,c=st.columns(3)
-    with a:
-        style=st.selectbox("Estilo",["Cinemático","Institucional","Comercial","Educativo","Redes Sociais"])
-    with b:
-        aspect=st.selectbox("Formato",["16:9","9:16","1:1"])
-    with c:
-        seconds=st.selectbox("Duração",[5,8,10,15],index=2,format_func=lambda x:str(x)+"s")
-    go=st.button("✨ Gerar vídeo agora",use_container_width=True,type="primary",disabled=not prompt.strip())
-    st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Prompt</b><small>Você descreve</small></div><div class="cz-step"><b>02 · Diretor IA</b><small>OpenRouter organiza</small></div><div class="cz-step"><b>03 · Render</b><small>Motion Storyboard → local</small></div><div class="cz-step"><b>04 · MP4</b><small>Preview e download</small></div></div>',unsafe_allow_html=True)
+    if mode == "Aula XPeX Academy":
+        st.markdown('<div class="cz-card"><h2>Criar aula</h2><p style="color:#93a4b8">Digite o tema. A Cenara monta uma microaula pronta para o curso.</p></div>',unsafe_allow_html=True)
+        topic=st.text_area("Tema da aula",height=150,placeholder="Ex.: Fundamentos de Inteligência Artificial — diferença entre IA, Machine Learning e IA Generativa.")
+        objective=st.text_input("Objetivo da aula",placeholder="Ex.: Fazer o aluno entender os conceitos e reconhecer exemplos práticos.")
+        a,b,c=st.columns(3)
+        with a:
+            minutes=st.selectbox("Duração", [3,4], index=0, format_func=lambda x:f"{x} minutos")
+        with b:
+            academy_voice=st.selectbox("Professor(a)",[
+                "pt-BR-FranciscaNeural-Female",
+                "pt-BR-AntonioNeural-Male",
+            ], format_func=lambda x:"Professora IA" if "Francisca" in x else "Professor IA")
+        with c:
+            avatar_enabled=st.selectbox("Avatar",["Com avatar","Sem avatar"])=="Com avatar"
+        go_academy=st.button("🎓 Gerar aula XPeX agora",use_container_width=True,type="primary",disabled=not topic.strip())
+        st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Tema</b><small>Objetivo pedagógico</small></div><div class="cz-step"><b>02 · Roteiro</b><small>Diretor XPeX</small></div><div class="cz-step"><b>03 · Aula</b><small>Voz + visuais + avatar</small></div><div class="cz-step"><b>04 · MP4</b><small>Pronto para publicar</small></div></div>',unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="cz-card"><h2>Criar vídeo</h2><p style="color:#93a4b8">Descreva exatamente o vídeo que você quer.</p></div>',unsafe_allow_html=True)
+        prompt=st.text_area("Prompt do vídeo",height=220,placeholder="Ex.: Crie um vídeo cinematográfico apresentando a XPeX Academy.")
+        a,b,c=st.columns(3)
+        with a:
+            style=st.selectbox("Estilo",["Cinemático","Institucional","Comercial","Educativo","Redes Sociais"])
+        with b:
+            aspect=st.selectbox("Formato",["16:9","9:16","1:1"])
+        with c:
+            seconds=st.selectbox("Duração",[5,8,10,15],index=2,format_func=lambda x:str(x)+"s")
+        go=st.button("✨ Gerar vídeo agora",use_container_width=True,type="primary",disabled=not prompt.strip())
+        st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Prompt</b><small>Você descreve</small></div><div class="cz-step"><b>02 · Diretor IA</b><small>OpenRouter organiza</small></div><div class="cz-step"><b>03 · Render</b><small>Motion Storyboard</small></div><div class="cz-step"><b>04 · MP4</b><small>Preview e download</small></div></div>',unsafe_allow_html=True)
 
 with right:
-    st.markdown('<div class="cz-card"><h2>Preview</h2><p style="color:#93a4b8">O resultado aparece aqui.</p></div>',unsafe_allow_html=True)
+    st.markdown('<div class="cz-card"><h2>Prévia</h2><p style="color:#93a4b8">O resultado aparece aqui.</p></div>',unsafe_allow_html=True)
 
-if go:
+if mode == "Aula XPeX Academy" and go_academy:
+    with st.status("Cenara está produzindo a aula...",expanded=True) as status:
+        try:
+            st.write("Escrevendo roteiro pedagógico...")
+            st.write("Gerando narração...")
+            st.write("Criando visuais e avatar...")
+            output, manifest = create_academy_lesson(
+                topic=topic,
+                objective=objective,
+                minutes=minutes,
+                voice_name=academy_voice,
+                voice_rate=1.0,
+                avatar_enabled=avatar_enabled,
+            )
+            if not valid_mp4(output):
+                raise RuntimeError("MP4 de aula inválido")
+            st.session_state["cenara_video"]=str(output)
+            st.session_state["cenara_provider"]="xpex_academy_lesson_v1"
+            st.session_state["cenara_provider_error"]=""
+            st.session_state["cenara_lesson_manifest"]=manifest
+            status.update(label="Aula pronta",state="complete",expanded=False)
+        except Exception as exc:
+            status.update(label="Falha na geração da aula",state="error",expanded=True)
+            st.error("Falha na aula: " + (str(exc) or type(exc).__name__))
+            print(f"CENARA_ACADEMY stage=ui status=fail type={type(exc).__name__} detail={' '.join(str(exc).split())[:300]}")
+
+if mode == "Vídeo livre" and go:
     with st.status("Cenara está criando...",expanded=True) as status:
         st.write("Direção criativa...")
         try:
@@ -397,11 +443,14 @@ if latest and Path(latest).is_file():
     with right:
         st.video(latest)
         st.caption("Motor: "+st.session_state.get("cenara_provider","-"))
+        manifest=st.session_state.get("cenara_lesson_manifest") or {}
+        if manifest:
+            st.caption(f"Aula: {manifest.get('title','-')} · {manifest.get('audio_duration','-')}s")
         provider_error=st.session_state.get("cenara_provider_error","")
         if provider_error:
             st.info("Provider de vídeo generativo indisponível; a Cenara entregou o melhor fallback disponível.")
         data=Path(latest).read_bytes()
-        st.download_button("Baixar MP4",data=data,file_name="cenara-video.mp4",mime="video/mp4",use_container_width=True)
+        st.download_button("Baixar MP4",data=data,file_name="xpex-academy-aula.mp4" if mode=="Aula XPeX Academy" else "cenara-video.mp4",mime="video/mp4",use_container_width=True)
 
 items=recent()
 if items:
