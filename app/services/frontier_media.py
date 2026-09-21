@@ -26,6 +26,13 @@ VIDEO_MODELS: dict[str, dict[str, Any]] = {
         "open_source": False,
         "durations": range(4, 16),
     },
+    "seedance-2-fast": {
+        "provider": "fal",
+        "endpoint": "bytedance/seedance-2.0/fast/text-to-video",
+        "label": "Seedance 2.0 Fast",
+        "open_source": False,
+        "durations": range(4, 16),
+    },
     "veo-3.1": {
         "provider": "fal",
         "endpoint": "fal-ai/veo3.1",
@@ -132,19 +139,20 @@ def _fal_payload(model_id: str, prompt: str, aspect_ratio: str, duration: int) -
         "prompt": _cinematic_prompt(prompt),
         "aspect_ratio": aspect_ratio,
     }
-    if model_id == "veo-3.1":
-        payload.update(
-            duration=f"{_duration_for_model(duration, model_id)}s",
-            resolution=_resolution_for_model(model_id),
-            generate_audio=True,
-            auto_fix=True,
-        )
-    elif model_id == "seedance-2":
+    if model_id in {"seedance-2", "seedance-2-fast"}:
         payload.update(
             duration=str(_duration_for_model(duration, model_id)),
             resolution=_resolution_for_model(model_id),
             generate_audio=True,
             bitrate_mode="high",
+            end_user_id=str(os.getenv("CENARA_FAL_END_USER_ID", "xpex-internal")),
+        )
+    elif model_id == "veo-3.1":
+        payload.update(
+            duration=f"{_duration_for_model(duration, model_id)}s",
+            resolution=_resolution_for_model(model_id),
+            generate_audio=True,
+            auto_fix=True,
         )
     elif model_id == "kling-3-pro":
         payload.update(
@@ -192,7 +200,11 @@ def generate_video_url(
         raise FrontierMediaError(f"Frontier video transport failed: {type(exc).__name__}") from exc
 
     if response.status_code >= 400:
-        raise FrontierMediaError(f"Frontier video provider failed HTTP {response.status_code}")
+        safe_detail = " ".join((response.text or "").split())[:300]
+        raise FrontierMediaError(
+            f"Frontier video provider failed HTTP {response.status_code}"
+            + (f" detail={safe_detail}" if safe_detail else "")
+        )
 
     try:
         body = response.json()
