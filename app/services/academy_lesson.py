@@ -42,27 +42,38 @@ def _openrouter_lesson(topic: str, objective: str, minutes: int) -> dict:
     fallback_script = (
         f"Bem-vindo à XPeX Academy. Nesta aula vamos estudar {topic}. "
         f"Nosso objetivo é {objective or 'entender o conceito e aplicar na prática'}. "
-        "Comece identificando o problema que você quer resolver. Em inteligência artificial, contexto e objetivo claro "
-        "são tão importantes quanto a ferramenta escolhida. Em seguida, transforme o problema em uma sequência simples: "
-        "entrada, processamento, validação e resultado. Evite automatizar decisões importantes sem revisão. "
-        "Na prática, teste em pequena escala, registre o que funcionou e melhore o processo. "
-        "Quando trabalhar com modelos generativos, lembre que a resposta pode parecer convincente e ainda assim conter erros. "
-        "Por isso, valide fatos, dados externos e decisões de maior impacto. "
-        "Use a IA como uma camada de produtividade: ela pode resumir, organizar, classificar, gerar rascunhos e apoiar análises, "
-        "mas a responsabilidade pelo resultado continua humana. "
-        "Agora pense em um exemplo do seu próprio trabalho. Escolha uma tarefa repetitiva, defina uma entrada clara e determine "
-        "como você vai avaliar a qualidade da saída. Esse exercício transforma teoria em aplicação. "
-        "Para concluir, retenha três pontos: primeiro, objetivo claro; segundo, validação proporcional ao risco; terceiro, melhoria contínua. "
-        "Na próxima aula avançaremos para uma aplicação prática dentro do ecossistema XPeX Academy."
+        "Começando pelo conceito mais amplo: inteligência artificial é o campo que busca construir sistemas capazes de executar tarefas "
+        "que normalmente exigiriam alguma forma de inteligência humana, como reconhecer padrões, compreender linguagem, recomendar opções "
+        "ou apoiar decisões. Dentro desse campo existe o Machine Learning, ou aprendizado de máquina. Em vez de programarmos cada regra "
+        "manualmente, fornecemos dados e exemplos para que o sistema aprenda padrões e use esses padrões em novas situações. "
+        "Pense em um filtro de spam. Não precisamos escrever uma regra para cada mensagem possível. O modelo aprende características comuns "
+        "de mensagens indesejadas e passa a classificar novas mensagens com base no que aprendeu. "
+        "Agora chegamos à IA Generativa. Ela também usa modelos aprendidos a partir de muitos dados, mas seu objetivo principal é produzir "
+        "novo conteúdo: texto, imagem, áudio, código ou vídeo. Um assistente que cria um resumo, uma imagem a partir de uma descrição ou um "
+        "rascunho de e-mail é um exemplo de IA generativa. "
+        "Então guarde esta relação: IA é o campo mais amplo. Machine Learning é uma das principais abordagens dentro desse campo. "
+        "IA Generativa é uma categoria de sistemas modernos que usa modelos aprendidos para criar novas saídas. "
+        "Na prática, escolha a tecnologia pelo problema, e não pelo nome mais novo. Se você precisa classificar clientes em grupos, um modelo "
+        "de Machine Learning pode ser suficiente. Se você precisa escrever uma resposta personalizada, um modelo generativo pode ser mais adequado. "
+        "Se a tarefa exige uma decisão crítica, como saúde, finanças ou segurança, aumente a validação e mantenha supervisão humana. "
+        "Vamos fazer um exercício rápido. Pense em uma tarefa repetitiva do seu dia. Primeiro, defina qual é a entrada. Depois, diga qual resultado "
+        "você espera. Em seguida, pergunte: eu preciso prever uma categoria, reconhecer um padrão ou gerar novo conteúdo? Essa pergunta já ajuda "
+        "a separar Machine Learning tradicional de IA Generativa. "
+        "Outro ponto importante é que respostas generativas são probabilísticas. Um texto pode parecer convincente e ainda conter uma informação "
+        "incorreta. Por isso, valide fatos, fontes e decisões importantes antes de usar a saída em produção. "
+        "Para fechar, leve três ideias. Primeiro: inteligência artificial é o guarda-chuva. Segundo: Machine Learning aprende padrões a partir de dados. "
+        "Terceiro: IA Generativa produz novo conteúdo com base nesses padrões aprendidos. "
+        "Na próxima aula da XPeX Academy vamos aprofundar como modelos de linguagem funcionam e por que eles conseguem gerar respostas tão naturais."
     )
     fallback = {
         "title": topic or "Aula XPeX Academy",
         "script": fallback_script,
         "sections": [
             {"title": "Abertura", "visual": f"premium AI education studio, XPeX Academy inspired, topic {topic}, dark navy, cyan and orange"},
-            {"title": "Conceito", "visual": f"clean educational visualization about {topic}, professional technology classroom"},
-            {"title": "Aplicação", "visual": f"professional team applying {topic} in a modern workplace, realistic"},
-            {"title": "Prática", "visual": f"step by step practical workflow for {topic}, premium educational visual"},
+            {"title": "Inteligência Artificial", "visual": "artificial intelligence concept, connected systems, professional education, realistic technology"},
+            {"title": "Machine Learning", "visual": "machine learning patterns, data flowing into a model, clean educational visualization, realistic"},
+            {"title": "IA Generativa", "visual": "generative AI producing text images audio and code, premium educational visualization"},
+            {"title": "Aplicação prática", "visual": f"professional learner applying {topic} in a modern workplace, realistic"},
             {"title": "Resumo", "visual": f"clean futuristic learning environment summarizing {topic}, premium education"},
         ],
     }
@@ -96,7 +107,7 @@ def _openrouter_lesson(topic: str, objective: str, minutes: int) -> dict:
                 "temperature": 0.45,
                 "max_tokens": 2400,
             },
-            timeout=(20, 180),
+            timeout=(12, 28),
         )
         if response.status_code >= 400:
             return fallback
