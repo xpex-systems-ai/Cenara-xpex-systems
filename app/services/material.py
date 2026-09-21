@@ -13,7 +13,12 @@ from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 from app.services.runtime_limits import get_runtime_limits
-from app.services.frontier_media import FrontierMediaError, generate_frontier_materials
+from app.services.frontier_media import (
+    FrontierMediaError,
+    frontier_provider_id,
+    generate_frontier_materials,
+    generate_huggingface_video_file,
+)
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
@@ -370,6 +375,21 @@ def download_videos(
 ) -> List[str]:
     if source == "frontier_ai":
         logger.info("Cenara Frontier AI material generation requested")
+        material_directory = config.app.get("material_directory", "").strip()
+        if material_directory == "task":
+            material_directory = utils.task_dir(task_id)
+        elif not material_directory or not os.path.isdir(material_directory):
+            material_directory = utils.task_dir(task_id)
+
+        if frontier_provider_id() == "huggingface":
+            prompt = search_terms[0] if search_terms else "premium cinematic AI technology scene"
+            output_path = os.path.join(material_directory, "hf-frontier-master.mp4")
+            try:
+                return [generate_huggingface_video_file(prompt, output_path)]
+            except FrontierMediaError as exc:
+                logger.error(f"huggingface frontier failed safely: {str(exc)}")
+                return []
+
         try:
             generated_items = generate_frontier_materials(
                 search_terms=search_terms,
@@ -380,12 +400,6 @@ def download_videos(
         except FrontierMediaError as exc:
             logger.error(f"frontier provider failed safely: {str(exc)}")
             return []
-
-        material_directory = config.app.get("material_directory", "").strip()
-        if material_directory == "task":
-            material_directory = utils.task_dir(task_id)
-        elif material_directory and not os.path.isdir(material_directory):
-            material_directory = ""
 
         video_paths = []
         for item in generated_items:

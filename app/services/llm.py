@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import re
@@ -154,7 +155,7 @@ def _extract_qwen_generation_text(response) -> str:
 def _generate_response(prompt: str) -> str:
     try:
         content = ""
-        llm_provider = config.app.get("llm_provider", "openai")
+        llm_provider = os.getenv("CENARA_LLM_PROVIDER", "").strip() or config.app.get("llm_provider", "openai")
         logger.info(f"llm provider: {llm_provider}")
         if llm_provider == "g4f":
             if not config.app.get("enable_g4f", False):
@@ -205,6 +206,10 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.app.get("openai_base_url", "")
                 if not base_url:
                     base_url = "https://api.openai.com/v1"
+            elif llm_provider == "openrouter":
+                api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+                model_name = os.getenv("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free"
+                base_url = "https://openrouter.ai/api/v1"
             elif llm_provider == "aihubmix":
                 api_key = config.app.get("aihubmix_api_key")
                 model_name = config.app.get("aihubmix_model_name")

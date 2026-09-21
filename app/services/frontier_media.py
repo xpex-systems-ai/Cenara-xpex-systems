@@ -75,6 +75,11 @@ def _secret(name: str) -> str:
     return str(os.getenv(name, "") or "").strip()
 
 
+def frontier_provider_id() -> str:
+    provider = str(os.getenv("CENARA_FRONTIER_PROVIDER", "huggingface") or "huggingface").strip().lower()
+    return provider if provider in {"huggingface", "fal"} else "huggingface"
+
+
 def video_model_id() -> str:
     selected = str(os.getenv("CENARA_FRONTIER_VIDEO_MODEL", DEFAULT_VIDEO_MODEL) or DEFAULT_VIDEO_MODEL).strip()
     return selected if selected in VIDEO_MODELS else DEFAULT_VIDEO_MODEL
@@ -86,8 +91,8 @@ def provider_status() -> dict[str, Any]:
     return {
         "video_model": model_id,
         "video_label": spec["label"],
-        "video_provider": spec["provider"],
-        "video_ready": bool(_secret("FAL_KEY")),
+        "video_provider": frontier_provider_id(),
+        "video_ready": bool(_secret("HF_TOKEN")) if frontier_provider_id() == "huggingface" else bool(_secret("FAL_KEY")),
         "image_model": str(os.getenv("CENARA_NANO_BANANA_MODEL", DEFAULT_NANO_BANANA_MODEL) or DEFAULT_NANO_BANANA_MODEL),
         "image_ready": bool(_secret("GEMINI_API_KEY") or _secret("GOOGLE_API_KEY")),
     }
@@ -267,4 +272,49 @@ def generate_nano_banana_image(prompt: str, output_path: str) -> str:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(base64.b64decode(encoded))
+    return str(path)
+
+
+def generate_huggingface_video_file(
+    prompt: str,
+    output_path: str,
+    *,
+    model: str | None = None,
+) -> str:
+    """Generate one open-model video through Hugging Face Inference Providers."""
+    token = _secret("HF_TOKEN")
+    if not token:
+        raise FrontierMediaError("HF_TOKEN is not configured")
+
+    selected_model = str(
+        model
+        or os.getenv("CENARA_HF_VIDEO_MODEL", "Lightricks/LTX-Video-0.9.8-13B-distilled")
+    ).strip()
+    provider = str(os.getenv("CENARA_HF_VIDEO_PROVIDER", "auto") or "auto").strip()
+
+    try:
+        from huggingface_hub import InferenceClient
+    except Exception as exc:
+        raise FrontierMediaError("huggingface_hub is not installed") from exc
+
+    logger.info(f"Cenara Hugging Face generation started model={selected_model} provider={provider}")
+    try:
+        client = InferenceClient(provider=provider, api_key=token, timeout=900)
+        payload = client.text_to_video(
+            _cinematic_prompt(prompt),
+            model=selected_model,
+            num_frames=int(os.getenv("CENARA_HF_VIDEO_FRAMES", "81") or 81),
+            num_inference_steps=int(os.getenv("CENARA_HF_VIDEO_STEPS", "20") or 20),
+        )
+    except Exception as exc:
+        detail = " ".join(str(exc).split())[:260]
+        raise FrontierMediaError(f"Hugging Face video generation failed: {detail}") from exc
+
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) < 100_000:
+        raise FrontierMediaError("Hugging Face returned an invalid/empty video payload")
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(bytes(payload))
+    logger.success(f"Cenara Hugging Face generation completed model={selected_model}")
     return str(path)
