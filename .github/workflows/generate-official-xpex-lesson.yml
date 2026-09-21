@@ -1,5 +1,5 @@
 name: Generate Official XPeX Lesson
-# trigger-v8-roman-professional-ready
+# trigger-v9-downloadable-professional
 
 on:
   push:
