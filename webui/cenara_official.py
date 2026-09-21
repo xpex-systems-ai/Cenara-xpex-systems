@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import os
+import textwrap
 from pathlib import Path
 
 import streamlit as st
@@ -83,6 +84,11 @@ url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fi
     )
 
 
+def _html_block(value: str) -> str:
+    """Normalize multiline HTML so Markdown never interprets it as a code block."""
+    return textwrap.dedent(value).strip()
+
+
 def _sidebar(active: str = "home") -> str:
     items = [
         ("home", "⌂", "Início", "?view=home"),
@@ -97,22 +103,22 @@ def _sidebar(active: str = "home") -> str:
         f'<a class="{"active" if key == active else ""}" href="{href}"><span class="ico">{ico}</span>{label}</a>'
         for key, ico, label, href in items
     )
-    return f"""
+    return _html_block(f"""
     <aside class="cz-side">
       <div class="cz-brand"><div class="cz-mark"></div><div><div class="cz-name">CENARA</div><div class="cz-tagline">AI VIDEOS. BIGGER IDEAS.</div></div></div>
       <nav class="cz-nav">{nav}</nav>
       <div class="cz-pro"><b>✦ Cenara Studio</b><p>Criação audiovisual com IA, modelos abertos e direção inteligente.</p><a class="cz-upgrade" href="?view=studio">Criar agora</a></div>
     </aside>
-    """
+    """)
 
 
 def _topbar() -> str:
-    return """
+    return _html_block("""
     <header class="cz-top">
       <div class="cz-search">⌕ &nbsp; Buscar modelos, estilos, projetos ou inspiração...</div>
       <div class="cz-user"><span>♢</span><div class="cz-avatar">GX</div><div><b>Operador XPeX</b><small>Cenara Studio</small></div></div>
     </header>
-    """
+    """)
 
 
 def _cards_html(items, template=False, inspiration=False) -> str:
@@ -139,7 +145,7 @@ def render_official_home() -> None:
     ]
     flow_html = "".join(f"<div><span>{ico}</span><b>{title}</b><small>{sub}</small></div>" for ico,title,sub in flow)
     st.markdown(
-        f"""
+        _html_block(f"""
 <div class="cz-shell">
   {_sidebar("home")}
   <main class="cz-main">
@@ -160,14 +166,14 @@ def render_official_home() -> None:
     </div>
   </main>
 </div>
-""",
+"""),
         unsafe_allow_html=True,
     )
 
 
 def render_official_studio_header() -> None:
     st.markdown(
-        f"""
+        _html_block(f"""
 <div class="cz-shell" style="min-height:auto">
   {_sidebar("studio")}
   <main class="cz-main">
@@ -175,6 +181,6 @@ def render_official_studio_header() -> None:
     <section class="cz-studio-head"><a class="cz-back" href="?view=home">← Voltar ao início</a><h1>Criar vídeo</h1><p>Direção, roteiro, mídia, voz, legendas, montagem e exportação em um fluxo único.</p></section>
   </main>
 </div>
-""",
+"""),
         unsafe_allow_html=True,
     )
