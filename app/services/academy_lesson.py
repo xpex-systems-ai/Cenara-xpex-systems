@@ -17,6 +17,7 @@ from loguru import logger
 from app.services import voice
 from app.services.lipsync_engine import render_lipsync
 from app.services.open_video_router import OpenVideoRouterError, configured_models, generate_open_video
+from app.services.ultra_visual_director import active_profile, enhance_visual_prompt
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -639,10 +640,10 @@ def _try_official_open_video(
     if not configured_models():
         return None, ""
     target = task_dir / f"scene-{idx+1:02d}-official-open-video.mp4"
-    prompt = (
+    prompt = enhance_visual_prompt(
         f"{visual_prompt or title}. Professional educational B-roll for XPeX Academy, "
-        "realistic motion, clean premium composition, cinematic camera movement, "
-        "no text, no logos, directly relevant to the lesson, 16:9."
+        "directly relevant to the lesson, 16:9.",
+        subject_lock=title,
     )
     try:
         path, model_id = generate_open_video(
@@ -650,7 +651,7 @@ def _try_official_open_video(
             target,
             duration=5,
             aspect="16:9",
-            preferred=os.getenv("CENARA_OPEN_VIDEO_MODEL", "wan22"),
+            preferred=os.getenv("CENARA_OPEN_VIDEO_MODEL", active_profile().prefer_video_model),
         )
         if path.is_file() and path.stat().st_size > 100_000:
             return path, f"open_video:{model_id}"
@@ -671,7 +672,7 @@ def _render_dynamic_scene(
     avatar: Path | None,
 ) -> tuple[Path, str]:
     """Premium compositor: cut every ~5-7s, alternate layouts, kinetic keywords, no long static shots."""
-    chunk_target = 6.0
+    chunk_target = active_profile().cut_seconds
     count = max(2, int(math.ceil(duration / chunk_target)))
     chunk_duration = duration / count
     words = _keywords(scene_script, max(3, count))
@@ -836,8 +837,8 @@ def create_academy_lesson(
             else "none"
         ),
         "output": str(final),
-        "engine": "xpex_official_video_engine_v5",
-        "quality_profile": "academy_official_open_video_plus_dynamic_compositor",
+        "engine": "xpex_ultra_video_engine_v6",
+        "quality_profile": active_profile().name,
         "support_visual_policy": "kinetic_branded_slides_and_presenter_intercuts",
     }
     (task_dir / "lesson-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
