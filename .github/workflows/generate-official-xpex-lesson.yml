@@ -1,0 +1,62 @@
+name: Generate Official XPeX Lesson
+
+on:
+  push:
+    paths:
+      - ".github/workflows/generate-official-xpex-lesson.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CENARA_STORAGE_DIR: ${{ github.workspace }}/storage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg and minimal Python dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install edge_tts==7.2.7 requests==2.33.1 loguru==0.7.3 moviepy==2.2.1 openai==2.24.0 pydub==0.25.1 toml==0.10.2
+
+      - name: Generate first official XPeX Academy lesson
+        run: |
+          python - <<'PY'
+          from app.services.academy_lesson import create_academy_lesson
+          p, m = create_academy_lesson(
+              topic="Fundamentos de Inteligência Artificial — diferença entre IA, Machine Learning e IA Generativa",
+              objective="Fazer o aluno entender os três conceitos, reconhecer exemplos práticos e saber quando cada abordagem é usada.",
+              minutes=3,
+              voice_name="pt-BR-FranciscaNeural-Female",
+              voice_rate=1.0,
+              avatar_enabled=True,
+          )
+          print("CENARA_OFFICIAL_LESSON_PASS", p, m.get("engine"), m.get("lipsync_mode"), m.get("audio_duration"))
+          PY
+
+      - name: Collect output
+        run: |
+          mkdir -p official-output
+          find storage/tasks -type f \( -name "xpex-academy-lesson.mp4" -o -name "lesson-manifest.json" -o -name "lesson.srt" \) -print -exec cp {} official-output/ \;
+          ls -lah official-output
+          test -s official-output/xpex-academy-lesson.mp4
+
+      - name: Upload official lesson artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xpex-academy-official-lesson-001
+          path: official-output/
+          if-no-files-found: error
+          retention-days: 30
