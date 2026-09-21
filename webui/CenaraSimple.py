@@ -361,7 +361,7 @@ badges = [
     "Edge TTS pronto",
     "FFmpeg pronto" if shutil.which("ffmpeg") else "FFmpeg ausente",
     ("Open Video: " + str(len(configured_models())) + " motores" if configured_models() else "Open Video: aguardando endpoint"),
-    "Modo XPeX Academy",
+    "Motor Oficial XPeX",
 ]
 st.markdown('<div class="cz-top"><div class="cz-brand"><span>▶</span> CENARA</div><div class="cz-pills">' + ''.join('<span class="cz-pill">● '+x+'</span>' for x in badges) + '</div></div>', unsafe_allow_html=True)
 st.markdown('<div class="cz-hero"><h1>Estúdio de Aulas<br><span style="color:#19d3f3">XPeX Academy.</span></h1><p>Crie aulas em blocos de 3 ou 4 minutos com roteiro, voz, edição dinâmica, cortes curtos, professor em tela, gráficos animados e MP4 pronto para publicar no curso.</p></div>', unsafe_allow_html=True)
@@ -385,7 +385,7 @@ with left:
         with c:
             avatar_enabled=st.selectbox("Avatar",["Com avatar","Sem avatar"])=="Com avatar"
         go_academy=st.button("🎓 Gerar aula XPeX agora",use_container_width=True,type="primary",disabled=not topic.strip())
-        st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Tema</b><small>Objetivo pedagógico</small></div><div class="cz-step"><b>02 · Roteiro</b><small>Diretor XPeX</small></div><div class="cz-step"><b>03 · Aula</b><small>Cortes + professor + gráficos</small></div><div class="cz-step"><b>04 · MP4</b><small>Pronto para publicar</small></div></div>',unsafe_allow_html=True)
+        st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Tema</b><small>Objetivo pedagógico</small></div><div class="cz-step"><b>02 · Roteiro</b><small>Diretor XPeX</small></div><div class="cz-step"><b>03 · Aula</b><small>Wan/LTX + professor + gráficos</small></div><div class="cz-step"><b>04 · MP4</b><small>Pronto para publicar</small></div></div>',unsafe_allow_html=True)
     else:
         st.markdown('<div class="cz-card"><h2>Criar vídeo</h2><p style="color:#93a4b8">Descreva exatamente o vídeo que você quer.</p></div>',unsafe_allow_html=True)
         prompt=st.text_area("Prompt do vídeo",height=220,placeholder="Ex.: Crie um vídeo cinematográfico apresentando a XPeX Academy.")
@@ -407,7 +407,7 @@ if mode == "Aula XPeX Academy" and go_academy:
         try:
             st.write("Escrevendo roteiro pedagógico...")
             st.write("Gerando narração...")
-            st.write("Editando aula premium: cortes, professor, gráficos e destaques...")
+            st.write("Motor oficial ativo: gerando vídeo real + professor + gráficos...")
             output, manifest = create_academy_lesson(
                 topic=topic,
                 objective=objective,
