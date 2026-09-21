@@ -19,6 +19,7 @@ if str(ROOT) not in os.sys.path:
 from app.services.frontier_media import FrontierMediaError, generate_huggingface_video_file
 from app.services.academy_lesson import AcademyLessonError, create_academy_lesson
 from app.services.open_video_router import OpenVideoRouterError, generate_open_video, configured_models
+from app.services.avatar_router import configured_avatar_engines
 
 STORAGE = ROOT / "storage"
 TASKS = STORAGE / "tasks"
@@ -360,8 +361,9 @@ badges = [
     "OpenRouter pronto" if has("OPENROUTER_API_KEY") else "Diretor local",
     "Edge TTS pronto",
     "FFmpeg pronto" if shutil.which("ffmpeg") else "FFmpeg ausente",
-    ("Open Video: " + str(len(configured_models())) + " motores" if configured_models() else "Open Video: aguardando endpoint"),
-    "Motor Oficial XPeX",
+    ("Open Video Ultra: " + str(len(configured_models())) + " motores" if configured_models() else "Open Video Ultra: fallback ativo"),
+    ("Avatar Ultra: " + str(len(configured_avatar_engines())) + " motores" if configured_avatar_engines() else "Avatar Ultra: fallback ativo"),
+    "XPeX Ultra Video Engine",
 ]
 st.markdown('<div class="cz-top"><div class="cz-brand"><span>▶</span> CENARA</div><div class="cz-pills">' + ''.join('<span class="cz-pill">● '+x+'</span>' for x in badges) + '</div></div>', unsafe_allow_html=True)
 st.markdown('<div class="cz-hero"><h1>Estúdio de Aulas<br><span style="color:#19d3f3">XPeX Academy.</span></h1><p>Crie aulas em blocos de 3 ou 4 minutos com roteiro, voz, edição dinâmica, cortes curtos, professor em tela, gráficos animados e MP4 pronto para publicar no curso.</p></div>', unsafe_allow_html=True)

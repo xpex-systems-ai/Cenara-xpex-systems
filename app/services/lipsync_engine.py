@@ -8,6 +8,7 @@ from pathlib import Path
 
 import requests
 from loguru import logger
+from app.services.avatar_router import render_avatar
 
 
 def _valid_mp4(path: Path) -> bool:
@@ -82,6 +83,9 @@ def _local_wav2lip_noncommercial(face: Path, audio: Path, output: Path) -> bool:
 def render_lipsync(face: Path, audio: Path, output: Path) -> tuple[bool, str]:
     """Production priority: MuseTalk remote -> research-only Wav2Lip -> caller fallback."""
     output.parent.mkdir(parents=True, exist_ok=True)
+    ok, engine = render_avatar(face, audio, output)
+    if ok:
+        return True, engine
     if _remote_musetalk(face, audio, output):
         return True, "musetalk_v15"
     if _local_wav2lip_noncommercial(face, audio, output):
