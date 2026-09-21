@@ -57,7 +57,12 @@ from app.services.runtime_limits import get_runtime_limits
 from app.services.railway_render import ffprobe_validate_mp4
 from app.services import task as tm
 from app.utils import utils
-from webui.cenara_official import inject_official_theme, render_official_home, render_official_studio_header
+from webui.cenara_official import (
+    inject_official_theme,
+    render_official_home,
+    render_official_section,
+    render_official_studio_header,
+)
 
 st.set_page_config(
     page_title="Cenara",
@@ -319,9 +324,15 @@ require_private_operator_token()
 inject_official_theme()
 
 _cenara_view = str(st.query_params.get("view", "home") or "home").strip().lower()
-if _cenara_view != "studio":
+if _cenara_view == "home":
     render_official_home()
     st.stop()
+if _cenara_view in {"projects", "library", "models", "media", "settings"}:
+    render_official_section(_cenara_view)
+    st.stop()
+if _cenara_view != "studio":
+    st.query_params["view"] = "home"
+    st.rerun()
 
 render_official_studio_header()
 _render_seedance_first_flight_preview()
