@@ -15,6 +15,7 @@ import requests
 from loguru import logger
 
 from app.services import voice
+from app.services.lipsync_engine import render_lipsync
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -338,87 +339,11 @@ def _try_wav2lip(avatar: Path, audio: Path, output: Path) -> bool:
 
 def _render_talking_head_scene(task_dir: Path, avatar: Path, audio: Path, seconds: float, title: str, idx: int) -> tuple[Path, str]:
     out = task_dir / f"scene-{idx+1:02d}-talking.mp4"
-    if _try_wav2lip(avatar, audio, out):
-        return out, "wav2lip"
+    ok, engine = render_lipsync(avatar, audio, out)
+    if ok:
+        return out, engine
     _render_presenter_motion(avatar, audio, out, seconds, title)
     return out, "presenter_motion"
-
-
-
-def _font(size: int, bold: bool = False):
-    candidates = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-    ]
-    for candidate in candidates:
-        if Path(candidate).is_file():
-            return ImageFont.truetype(candidate, size=size)
-    return ImageFont.load_default()
-
-
-def _wrap(draw, text: str, font, max_width: int) -> list[str]:
-    words = (text or "").split()
-    lines, line = [], ""
-    for word in words:
-        trial = (line + " " + word).strip()
-        box = draw.textbbox((0, 0), trial, font=font)
-        if box[2] - box[0] <= max_width:
-            line = trial
-        else:
-            if line:
-                lines.append(line)
-            line = word
-    if line:
-        lines.append(line)
-    return lines[:5]
-
-
-def _branded_slide(task_dir: Path, title: str, body: str, idx: int) -> Path:
-    out = task_dir / f"branded-support-{idx+1:02d}.png"
-    img = Image.new("RGB", (1280, 720), (5, 16, 28))
-    d = ImageDraw.Draw(img)
-
-    # premium XPeX frame
-    d.rounded_rectangle((42, 36, 1238, 684), radius=34, fill=(8, 27, 44), outline=(26, 91, 122), width=2)
-    d.rounded_rectangle((72, 66, 1208, 142), radius=22, fill=(8, 44, 65))
-    d.text((96, 88), "XPeX ACADEMY", font=_font(26, True), fill=(31, 212, 244))
-    d.text((96, 176), title, font=_font(46, True), fill="white")
-
-    # visual concept cards, deterministic and readable
-    concepts = []
-    low = title.lower()
-    if "machine" in low:
-        concepts = [("DADOS", "exemplos"), ("MODELO", "aprende padrões"), ("PREVISÃO", "aplica")]
-    elif "generativa" in low:
-        concepts = [("PROMPT", "instrução"), ("MODELO", "gera"), ("CONTEÚDO", "texto • imagem • áudio")]
-    elif "artificial" in low:
-        concepts = [("IA", "campo amplo"), ("ML", "aprende padrões"), ("GEN AI", "cria conteúdo")]
-    elif "aplicação" in low or "prática" in low:
-        concepts = [("ENTRADA", "problema"), ("PROCESSO", "IA adequada"), ("SAÍDA", "resultado validado")]
-    else:
-        concepts = [("CONCEITO", "entender"), ("EXEMPLO", "visualizar"), ("PRÁTICA", "aplicar")]
-
-    x0, y0, card_w, gap = 92, 290, 330, 36
-    for n, (head, sub) in enumerate(concepts[:3]):
-        x = x0 + n * (card_w + gap)
-        d.rounded_rectangle((x, y0, x+card_w, y0+190), radius=24, fill=(11, 40, 60), outline=(29, 115, 148), width=2)
-        d.ellipse((x+24, y0+24, x+78, y0+78), fill=(255, 122, 0))
-        d.text((x+96, y0+28), head, font=_font(27, True), fill="white")
-        for li, line in enumerate(_wrap(d, sub, _font(25), card_w-48)):
-            d.text((x+28, y0+104+li*34), line, font=_font(25), fill=(195, 218, 232))
-        if n < 2:
-            d.text((x+card_w+8, y0+72), "→", font=_font(44, True), fill=(31, 212, 244))
-
-    # concise teaching line at bottom
-    summary = (body or "").strip().split(".")[0][:140]
-    if summary:
-        d.rounded_rectangle((92, 522, 1188, 635), radius=18, fill=(6, 22, 36))
-        for li, line in enumerate(_wrap(d, summary, _font(26), 1030)):
-            d.text((120, 548+li*34), line, font=_font(26), fill=(220, 232, 240))
-
-    img.save(out, quality=95)
-    return out
-
 
 def _render_support_scene(task_dir: Path, image: Path | None, avatar: Path | None, audio: Path, seconds: float, title: str, idx: int) -> Path:
     ffmpeg = shutil.which("ffmpeg")
@@ -567,7 +492,12 @@ def create_academy_lesson(
         "voice": voice_name,
         "audio_duration": round(total_duration, 2),
         "avatar_enabled": bool(avatar_enabled and avatar.is_file()),
-        "lipsync_mode": "wav2lip" if "wav2lip" in lipsync_modes else ("presenter_motion" if avatar_enabled else "none"),
+        "lipsync_mode": (
+            "musetalk_v15" if "musetalk_v15" in lipsync_modes
+            else "wav2lip_noncommercial" if "wav2lip_noncommercial" in lipsync_modes
+            else "presenter_motion" if avatar_enabled
+            else "none"
+        ),
         "output": str(final),
         "engine": "xpex_instructor_engine_v3",
         "quality_profile": "academy_clean_no_gibberish",
