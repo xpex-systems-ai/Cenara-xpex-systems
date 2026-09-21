@@ -1482,40 +1482,140 @@ def _cenara_ffmpeg_text(value: str, limit: int = 42) -> str:
     return text.replace("'", "\\'").replace(":", "\\:")
 
 
+def _cenara_motion_profile(payload, script):
+    text = f"{getattr(payload, 'video_subject', '')} {script or ''}".lower()
+    vehicle_terms = [
+        "carro", "car", "veículo", "veiculo", "automóvel", "automovel", "moto", "motorcycle",
+        "correndo", "acelerando", "driving", "speed", "velocidade", "estrada", "road", "highway",
+    ]
+    travel_terms = ["avião", "aviao", "plane", "voando", "flying", "drone", "viagem", "travel"]
+    people_terms = ["pessoa", "homem", "mulher", "person", "people", "walking", "caminhando", "correndo"]
+    if any(term in text for term in vehicle_terms):
+        return "vehicle"
+    if any(term in text for term in travel_terms):
+        return "travel"
+    if any(term in text for term in people_terms):
+        return "people"
+    return "cinematic"
+
+
+def _cenara_motion_filters(profile, width, height, seconds, payload, script):
+    subject = _cenara_ffmpeg_text(getattr(payload, "video_subject", "Cenara"), 54)
+    first_script = _cenara_ffmpeg_text(str(script or "").split("\n", 1)[0], 54)
+    base = f"color=c=0x06111f:s={width}x{height}:r=24:d={seconds},format=yuv420p"
+
+    if profile == "vehicle":
+        # A visibly moving local storyboard: parallax road, speed streaks, car body and wheels.
+        road_y = int(height * 0.58)
+        car_y = int(height * 0.55)
+        car_w = max(180, int(width * 0.24))
+        car_h = max(70, int(height * 0.11))
+        wheel = max(24, int(car_h * 0.30))
+        speed = max(220, int(width * 0.34))
+        filters = [
+            "drawbox=x=0:y=0:w=iw:h=ih*0.58:color=0x0b1930:t=fill",
+            "drawbox=x=0:y=ih*0.58:w=iw:h=ih*0.42:color=0x111827:t=fill",
+            "drawbox=x=iw*0.48:y=ih*0.58:w=iw*0.04:h=ih*0.42:color=0xe5e7eb@0.45:t=fill",
+            "drawbox=x='mod(t*420,iw+260)-260':y=ih*0.72:w=180:h=12:color=white@0.70:t=fill",
+            "drawbox=x='mod(t*420+420,iw+260)-260':y=ih*0.72:w=180:h=12:color=white@0.70:t=fill",
+            "drawbox=x='mod(t*420+840,iw+260)-260':y=ih*0.72:w=180:h=12:color=white@0.70:t=fill",
+            "drawbox=x='mod(t*560,iw+180)-180':y=ih*0.26:w=150:h=4:color=0x38bdf8@0.28:t=fill",
+            "drawbox=x='mod(t*620+260,iw+180)-180':y=ih*0.34:w=120:h=4:color=0xff8a3d@0.28:t=fill",
+            f"drawbox=x='iw+{car_w}-mod(t*{speed},iw+{car_w*2})':y={car_y}:w={car_w}:h={car_h}:color=0x05070a:t=fill",
+            f"drawbox=x='iw+{car_w+int(car_w*0.12)}-mod(t*{speed},iw+{car_w*2})':y={car_y-int(car_h*0.35)}:w={int(car_w*0.58)}:h={int(car_h*0.48)}:color=0x0a0d12:t=fill",
+            f"drawbox=x='iw+{car_w+int(car_w*0.18)}-mod(t*{speed},iw+{car_w*2})':y={car_y-int(car_h*0.28)}:w={int(car_w*0.20)}:h={int(car_h*0.30)}:color=0x334155:t=fill",
+            f"drawbox=x='iw+{car_w+int(car_w*0.47)}-mod(t*{speed},iw+{car_w*2})':y={car_y-int(car_h*0.28)}:w={int(car_w*0.18)}:h={int(car_h*0.30)}:color=0x334155:t=fill",
+            f"drawbox=x='iw+{car_w+int(car_w*0.14)}-mod(t*{speed},iw+{car_w*2})':y={car_y+int(car_h*0.72)}:w={wheel}:h={wheel}:color=0x020202:t=fill",
+            f"drawbox=x='iw+{car_w+int(car_w*0.68)}-mod(t*{speed},iw+{car_w*2})':y={car_y+int(car_h*0.72)}:w={wheel}:h={wheel}:color=0x020202:t=fill",
+            f"drawtext=text='{subject}':fontcolor=white:fontsize={max(28,int(width*0.032))}:x=iw*0.06:y=ih*0.10:alpha='if(lt(t,0.4),t/0.4,1)'",
+            f"drawtext=text='MOTION STORYBOARD':fontcolor=0x21d4f4:fontsize={max(18,int(width*0.018))}:x=iw*0.06:y=ih*0.17",
+        ]
+        return base + "," + ",".join(filters)
+
+    if profile == "travel":
+        filters = [
+            "drawbox=x=0:y=0:w=iw:h=ih:color=0x071827:t=fill",
+            "drawbox=x='mod(t*180,iw+320)-320':y=ih*0.20:w=320:h=ih*0.55:color=0x0ea5e9@0.10:t=fill",
+            "drawbox=x='iw-mod(t*140,iw+260)':y=ih*0.42:w=260:h=ih*0.35:color=0xff7a00@0.09:t=fill",
+            "drawbox=x='mod(t*360,iw+120)-120':y=ih*0.30:w=90:h=10:color=white@0.65:t=fill",
+            f"drawtext=text='{subject}':fontcolor=white:fontsize={max(30,int(width*0.04))}:x=iw*0.07:y=ih*0.18",
+            f"drawtext=text='{first_script}':fontcolor=0xb9c7d6:fontsize={max(20,int(width*0.022))}:x=iw*0.07:y=ih*0.72",
+        ]
+        return base + "," + ",".join(filters)
+
+    # Generic cinematic motion with obvious parallax/light movement.
+    filters = [
+        "drawbox=x=0:y=0:w=iw:h=ih:color=0x08111f:t=fill",
+        "drawbox=x='mod(t*160,iw+420)-420':y=ih*0.12:w=420:h=ih*0.76:color=0x0ea5e9@0.11:t=fill",
+        "drawbox=x='iw-mod(t*130,iw+360)':y=ih*0.20:w=360:h=ih*0.62:color=0x7c3aed@0.10:t=fill",
+        "drawbox=x='mod(t*500,iw+140)-140':y=ih*0.32:w=140:h=6:color=0x38bdf8@0.42:t=fill",
+        "drawbox=x='mod(t*600+300,iw+180)-180':y=ih*0.58:w=180:h=5:color=0xff8a3d@0.36:t=fill",
+        f"drawtext=text='CENARA':fontcolor=0x21d4f4:fontsize={max(24,int(width*0.026))}:x=iw*0.07:y=ih*0.13",
+        f"drawtext=text='{subject}':fontcolor=white:fontsize={max(34,int(width*0.045))}:x=iw*0.07:y=ih*0.36:alpha='if(lt(t,0.5),t/0.5,1)'",
+        f"drawtext=text='{first_script}':fontcolor=0xb9c7d6:fontsize={max(21,int(width*0.022))}:x=iw*0.07:y=ih*0.56:alpha='if(lt(t,1.1),0,if(lt(t,1.8),(t-1.1)/0.7,1))'",
+    ]
+    return base + "," + ",".join(filters)
+
+
 def cenara_create_local_fallback_mp4(task_dir, payload, script, duration, aspect_ratio):
-    """Create a truthful current task fallback .mp4 with ffmpeg; not stock footage."""
+    """Create a real current-task MP4 with visible motion when generative providers are unavailable."""
     ffmpeg_binary = cenara_resolve_ffmpeg_binary()
     if not ffmpeg_binary:
         return ""
     task_path = Path(task_dir)
     task_path.mkdir(parents=True, exist_ok=True)
     task_id = task_path.name
-    output = task_path / f"cenara_fallback_{task_id}.mp4"
+    output = task_path / f"cenara_motion_{task_id}.mp4"
     width, height = _cenara_aspect_size(aspect_ratio)
-    seconds = max(3, int(duration or getattr(payload, "video_clip_duration", 3) or 3))
-    subject = _cenara_ffmpeg_text(getattr(payload, "video_subject", "Cenara Preview"), 44)
-    first_script = _cenara_ffmpeg_text(str(script or "").split("\n", 1)[0], 44)
-    cta = _cenara_ffmpeg_text("MP4 real gerado em modo visual local", 44)
-    base_filter = f"color=c=0x08111f:s={width}x{height}:d={seconds},format=yuv420p"
-    draw = (
-        "drawtext=text='Cenara Preview':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=h*0.20,"
-        f"drawtext=text='{subject}':fontcolor=0x93c5fd:fontsize=38:x=(w-text_w)/2:y=h*0.36,"
-        f"drawtext=text='{first_script}':fontcolor=white:fontsize=34:x=(w-text_w)/2:y=h*0.46,"
-        f"drawtext=text='{cta}':fontcolor=0xfbbf24:fontsize=30:x=(w-text_w)/2:y=h*0.62"
-    )
+    # Keep local render light enough for Railway while still visually smooth.
+    if width > 1280:
+        scale = 1280 / width
+        width, height = 1280, max(720, int(height * scale))
+    seconds = max(3, min(15, int(duration or getattr(payload, "video_clip_duration", 5) or 5)))
+    profile = _cenara_motion_profile(payload, script)
+    filtergraph = _cenara_motion_filters(profile, width, height, seconds, payload, script)
+
     commands = [
-        [ffmpeg_binary, "-y", "-f", "lavfi", "-i", f"{base_filter},{draw}", "-t", str(seconds), "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output)],
-        [ffmpeg_binary, "-y", "-f", "lavfi", "-i", base_filter, "-t", str(seconds), "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output)],
+        [
+            ffmpeg_binary, "-y",
+            "-f", "lavfi", "-i", filtergraph,
+            "-t", str(seconds),
+            "-r", "24",
+            "-an",
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-crf", "22",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(output),
+        ],
+        [
+            ffmpeg_binary, "-y",
+            "-f", "lavfi", "-i", f"testsrc2=s={width}x{height}:r=24:d={seconds}",
+            "-t", str(seconds),
+            "-an",
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(output),
+        ],
     ]
     for command in commands:
         try:
-            subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=seconds + 20)
-            if output.exists() and output.stat().st_size > 0:
+            subprocess.run(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+                timeout=max(60, seconds * 8),
+            )
+            if output.exists() and output.stat().st_size > 100_000:
+                logger.success(f"Cenara motion fallback created profile={profile} path={output.name}")
                 return str(output)
         except Exception as exc:
-            logger.warning(f"Cenara local fallback ffmpeg attempt failed: {type(exc).__name__}")
+            logger.warning(f"Cenara motion fallback ffmpeg attempt failed: {type(exc).__name__}")
     return ""
-
 
 def _cenara_provider_enabled(provider: str) -> bool:
     if provider == "pexels":
@@ -1563,8 +1663,8 @@ def cenara_trigger_real_generation(task_id, payload, status_box=None):
                 fallback = cenara_create_local_fallback_mp4(_task_dir_for(task_id), payload, payload.video_script, payload.video_clip_duration, payload.video_aspect)
                 if fallback and Path(fallback).exists() and Path(fallback).stat().st_size > 0 and Path(fallback).stat().st_mtime >= started_at:
                     provider_attempts[-1]["status"] = "success"
-                    result.update(success=True, output_path=fallback, logs=[f"current task fallback MP4: {Path(fallback).name}"], fallback_video_used=True)
-                    cenara_write_task_status(task_id, state="completed", output_path=fallback, media_ready=True, audio_ready=True, render_started=True, mp4_created=True, preview_ready=False, download_ready=False, mp4_created_preview_failed=False, fallback_video_used=True, provider_attempts=provider_attempts, safe_message="MP4 real gerado em modo visual local; mídia externa não encontrada.")
+                    result.update(success=True, output_path=fallback, logs=[f"current task motion MP4: {Path(fallback).name}"], fallback_video_used=True, motor="motion_storyboard")
+                    cenara_write_task_status(task_id, state="completed", output_path=fallback, media_ready=True, audio_ready=True, render_started=True, mp4_created=True, preview_ready=False, download_ready=False, mp4_created_preview_failed=False, fallback_video_used=True, provider_attempts=provider_attempts, safe_message="MP4 real gerado pelo Motion Storyboard local; provider generativo indisponível.")
                     return result
                 provider_attempts[-1]["status"] = "failed"
                 continue
@@ -1637,6 +1737,11 @@ def cenara_render_real_preview(mp4_path):
     rendered_path = cenara_render_mp4_player(candidate, label=preview_label, context=preview_context)
     if not rendered_path:
         return
+    if task_status.get("fallback_video_used"):
+        st.caption("Motor: motion_storyboard")
+    else:
+        st.caption("Motor: generative_video")
+
     if selected_from_library:
         st.success("MP4 selecionado na Biblioteca aberto na prévia.")
     elif current_task_mp4:
@@ -1645,7 +1750,7 @@ def cenara_render_real_preview(mp4_path):
         st.success("MP4 encontrado e pronto para abrir/baixar.")
         st.info("Este arquivo é da biblioteca; gere novamente para validar tarefa atual.")
     if task_status.get("fallback_video_used"):
-        st.warning("MP4 real gerado em modo visual local; mídia externa não encontrada.")
+        st.info("Motor atual: Motion Storyboard. O MP4 tem movimento real gerado localmente; quando um provider generativo estiver disponível, a Cenara prioriza text-to-video.")
 
 def _cenara_task_id_from_mp4(path):
     return cenara_task_id_for_deliverable_mp4(path)
