@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
@@ -11,8 +11,8 @@ ENV PYTHONPATH="/MoneyPrinterTurbo"
 
 # 本地用户默认继续优先使用国内镜像；GitHub Actions 发布 GHCR 镜像时使用 default，
 # 避免海外 runner 访问国内镜像过慢导致镜像发布长时间卡住。
-ARG DOCKER_BUILD_MIRROR=china
-ARG PIP_USE_OFFICIAL=0
+ARG DOCKER_BUILD_MIRROR=default
+ARG PIP_USE_OFFICIAL=1
 
 # Install system dependencies with retry logic
 RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
@@ -54,7 +54,7 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
     ) && rm -rf /var/lib/apt/lists/*
 
 # Fix security policy for ImageMagick
-RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
+RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml; fi
 
 # Copy only the requirements.txt first to leverage Docker cache
 COPY requirements.txt ./
