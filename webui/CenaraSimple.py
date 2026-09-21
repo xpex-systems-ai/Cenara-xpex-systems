@@ -7,6 +7,7 @@ import subprocess
 import time
 from pathlib import Path
 from uuid import uuid4
+from urllib.parse import quote
 
 import requests
 import streamlit as st
@@ -89,6 +90,109 @@ def valid_mp4(path: Path) -> bool:
     except Exception:
         return False
 
+
+def pollinations_image(prompt: str, target: Path, width: int, height: int, seed: int) -> bool:
+    """Best-effort free public image generation used only as a visual fallback."""
+    cleaned = " ".join((prompt or "").split()).strip()
+    if not cleaned:
+        return False
+    url = "https://image.pollinations.ai/prompt/" + quote(cleaned[:1400], safe="")
+    try:
+        response = requests.get(
+            url,
+            params={
+                "width": width,
+                "height": height,
+                "seed": seed,
+                "nologo": "true",
+                "enhance": "true",
+                "model": "flux",
+            },
+            timeout=(20, 150),
+        )
+        ctype = str(response.headers.get("content-type", "")).lower()
+        if response.status_code >= 400 or "image" not in ctype or len(response.content) < 20_000:
+            return False
+        target.write_bytes(response.content)
+        return target.is_file() and target.stat().st_size > 20_000
+    except Exception:
+        return False
+
+
+def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: int) -> Path | None:
+    """Create a real MP4 from prompt-matched AI imagery with motion and transitions."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    sizes = {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)}
+    w, h = sizes.get(aspect, (1280, 720))
+    image_w, image_h = (1024, 576) if aspect == "16:9" else ((576, 1024) if aspect == "9:16" else (768, 768))
+    shot_prompts = [
+        visual_prompt + ". Wide establishing shot, cinematic composition, premium commercial frame",
+        visual_prompt + ". Medium shot, realistic detail, elegant lighting, coherent subject continuity",
+        visual_prompt + ". Hero close-up, dramatic premium lighting, polished advertising finish",
+    ]
+    images = []
+    seed_base = int(time.time()) % 100000
+    for idx, shot in enumerate(shot_prompts):
+        target = task_dir / f"story-{idx+1}.jpg"
+        if pollinations_image(shot, target, image_w, image_h, seed_base + idx * 17):
+            images.append(target)
+    if not images:
+        return None
+
+    clip_seconds = max(1.6, float(seconds) / len(images))
+    clips = []
+    for idx, image in enumerate(images):
+        clip = task_dir / f"story-{idx+1}.mp4"
+        frames = max(30, int(clip_seconds * 30))
+        zoom = "min(zoom+0.0012,1.10)" if idx % 2 == 0 else "if(lte(zoom,1.0),1.08,max(1.0,zoom-0.0010))"
+        vf = (
+            f"scale={w}:{h}:force_original_aspect_ratio=increase,"
+            f"crop={w}:{h},"
+            f"zoompan=z='{zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"d={frames}:s={w}x{h}:fps=30,"
+            "fade=t=in:st=0:d=0.35,"
+            f"fade=t=out:st={max(0.4, clip_seconds-0.4):.2f}:d=0.35,"
+            "format=yuv420p"
+        )
+        try:
+            subprocess.run(
+                [
+                    ffmpeg, "-y", "-loop", "1", "-i", str(image),
+                    "-vf", vf, "-t", f"{clip_seconds:.2f}", "-r", "30",
+                    "-an", "-c:v", "libx264", "-preset", "veryfast",
+                    "-movflags", "+faststart", str(clip),
+                ],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180,
+            )
+            if valid_mp4(clip):
+                clips.append(clip)
+        except Exception:
+            continue
+    if not clips:
+        return None
+
+    concat_file = task_dir / "storyboard.txt"
+    concat_file.write_text(
+        "".join(f"file '{str(p).replace(chr(39), '')}'\n" for p in clips),
+        encoding="utf-8",
+    )
+    out = task_dir / "cenara-storyboard.mp4"
+    try:
+        subprocess.run(
+            [
+                ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+                "-movflags", "+faststart", str(out),
+            ],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=240,
+        )
+        return out if valid_mp4(out) else None
+    except Exception:
+        return None
+
+
 def local_video(task_dir: Path, prompt: str, aspect: str, seconds: int) -> Path:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -132,6 +236,13 @@ def generate(prompt: str, style: str, aspect: str, seconds: int):
         except Exception as exc:
             provider_error = type(exc).__name__
 
+    # Zero-cost visual path: turn prompt-matched AI images into a cinematic MP4.
+    storyboard = storyboard_video(task_dir, direction["visual_prompt"], aspect, seconds)
+    if storyboard and valid_mp4(storyboard):
+        provider = "ai_storyboard"
+        return storyboard, provider, provider_error
+
+    # Last-resort guarantee: still return a valid MP4 even if every external model is unavailable.
     target = local_video(task_dir, prompt, aspect, seconds)
     return target, provider, provider_error
 
@@ -166,7 +277,7 @@ with left:
     with c:
         seconds=st.selectbox("Duração",[5,8,10,15],index=2,format_func=lambda x:str(x)+"s")
     go=st.button("✨ Gerar vídeo agora",use_container_width=True,type="primary",disabled=not prompt.strip())
-    st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Prompt</b><small>Você descreve</small></div><div class="cz-step"><b>02 · Diretor IA</b><small>OpenRouter organiza</small></div><div class="cz-step"><b>03 · Render</b><small>HF ou fallback local</small></div><div class="cz-step"><b>04 · MP4</b><small>Preview e download</small></div></div>',unsafe_allow_html=True)
+    st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Prompt</b><small>Você descreve</small></div><div class="cz-step"><b>02 · Diretor IA</b><small>OpenRouter organiza</small></div><div class="cz-step"><b>03 · Render</b><small>HF → AI storyboard → local</small></div><div class="cz-step"><b>04 · MP4</b><small>Preview e download</small></div></div>',unsafe_allow_html=True)
 
 with right:
     st.markdown('<div class="cz-card"><h2>Preview</h2><p style="color:#93a4b8">O resultado aparece aqui.</p></div>',unsafe_allow_html=True)
@@ -193,7 +304,7 @@ if latest and Path(latest).is_file():
         st.caption("Motor: "+st.session_state.get("cenara_provider","-"))
         provider_error=st.session_state.get("cenara_provider_error","")
         if provider_error:
-            st.info("Provider externo indisponível; a Cenara entregou fallback local.")
+            st.info("Provider de vídeo generativo indisponível; a Cenara entregou o melhor fallback disponível.")
         data=Path(latest).read_bytes()
         st.download_button("Baixar MP4",data=data,file_name="cenara-video.mp4",mime="video/mp4",use_container_width=True)
 
