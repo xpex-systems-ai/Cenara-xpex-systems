@@ -16,6 +16,7 @@ from loguru import logger
 
 from app.services import voice
 from app.services.lipsync_engine import render_lipsync
+from app.services.open_video_router import OpenVideoRouterError, configured_models, generate_open_video
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -595,11 +596,75 @@ def _dynamic_support_chunk(
     subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(180, int(seconds*6)))
 
 
+
+def _render_open_video_support(
+    source_video: Path,
+    audio: Path,
+    output: Path,
+    seconds: float,
+    title: str,
+    keyword: str,
+) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise AcademyLessonError("FFmpeg ausente")
+    safe_title = _safe_drawtext(title, 52)
+    safe_kw = _safe_drawtext(keyword.upper(), 24)
+    vf = (
+        "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,"
+        "drawbox=x=0:y=0:w=1280:h=86:color=0x04101c@0.82:t=fill,"
+        f"drawtext=text='{safe_title}':fontcolor=white:fontsize=34:x=48:y=24,"
+        "drawbox=x=48:y=626:w=520:h=62:color=0x06101c@0.80:t=fill,"
+        f"drawtext=text='{safe_kw}':fontcolor=0xff9a3d:fontsize=28:x=72:y=643,"
+        "format=yuv420p"
+    )
+    subprocess.run(
+        [ffmpeg, "-y", "-stream_loop", "-1", "-i", str(source_video), "-i", str(audio),
+         "-vf", vf, "-t", f"{seconds:.3f}", "-map", "0:v:0", "-map", "1:a:0",
+         "-r", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+         "-movflags", "+faststart", str(output)],
+        check=True, capture_output=True, text=True, timeout=max(240, int(seconds * 8)),
+    )
+
+
+def _try_official_open_video(
+    task_dir: Path,
+    visual_prompt: str,
+    title: str,
+    idx: int,
+) -> tuple[Path | None, str]:
+    if str(os.getenv("CENARA_ACADEMY_OPEN_VIDEO", "0")).strip() != "1":
+        return None, ""
+    if not configured_models():
+        return None, ""
+    target = task_dir / f"scene-{idx+1:02d}-official-open-video.mp4"
+    prompt = (
+        f"{visual_prompt or title}. Professional educational B-roll for XPeX Academy, "
+        "realistic motion, clean premium composition, cinematic camera movement, "
+        "no text, no logos, directly relevant to the lesson, 16:9."
+    )
+    try:
+        path, model_id = generate_open_video(
+            prompt,
+            target,
+            duration=5,
+            aspect="16:9",
+            preferred=os.getenv("CENARA_OPEN_VIDEO_MODEL", "wan22"),
+        )
+        if path.is_file() and path.stat().st_size > 100_000:
+            return path, f"open_video:{model_id}"
+    except Exception as exc:
+        logger.warning(f"Academy open video fallback: {type(exc).__name__}: {' '.join(str(exc).split())[:180]}")
+    return None, ""
+
+
 def _render_dynamic_scene(
     task_dir: Path,
     kind: str,
     title: str,
     scene_script: str,
+    visual_prompt: str,
     audio: Path,
     duration: float,
     idx: int,
@@ -613,8 +678,12 @@ def _render_dynamic_scene(
     clips: list[Path] = []
 
     base_slide = None
+    open_video = None
+    open_video_engine = ""
     if kind == "support_visual":
-        base_slide = _branded_slide(task_dir, title, scene_script, idx)
+        open_video, open_video_engine = _try_official_open_video(task_dir, visual_prompt, title, idx)
+        if open_video is None:
+            base_slide = _branded_slide(task_dir, title, scene_script, idx)
 
     for part in range(count):
         start = part * chunk_duration
@@ -631,11 +700,15 @@ def _render_dynamic_scene(
                 _dynamic_presenter_chunk(avatar, seg_audio, seg_video, seg_dur, title, keyword, part)
                 engine = "premium_presenter_motion"
         else:
-            _dynamic_support_chunk(
-                task_dir, base_slide, avatar, seg_audio, seg_video, seg_dur,
-                title, keyword, part
-            )
-            engine = "premium_support_motion"
+            if open_video is not None:
+                _render_open_video_support(open_video, seg_audio, seg_video, seg_dur, title, keyword)
+                engine = open_video_engine or "open_video"
+            else:
+                _dynamic_support_chunk(
+                    task_dir, base_slide, avatar, seg_audio, seg_video, seg_dur,
+                    title, keyword, part
+                )
+                engine = "premium_support_motion"
 
         if seg_video.is_file() and seg_video.stat().st_size > 30_000:
             clips.append(seg_video)
@@ -714,6 +787,7 @@ def create_academy_lesson(
             kind=kind,
             title=scene.get("title") or f"Parte {idx+1}",
             scene_script=scene_script,
+            visual_prompt=scene.get("visual") or scene.get("title") or topic,
             audio=preserved_audio,
             duration=scene_duration,
             idx=idx,
@@ -762,8 +836,8 @@ def create_academy_lesson(
             else "none"
         ),
         "output": str(final),
-        "engine": "xpex_premium_dynamic_compositor_v4",
-        "quality_profile": "academy_premium_dynamic_4_to_7_second_cuts",
+        "engine": "xpex_official_video_engine_v5",
+        "quality_profile": "academy_official_open_video_plus_dynamic_compositor",
         "support_visual_policy": "kinetic_branded_slides_and_presenter_intercuts",
     }
     (task_dir / "lesson-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
