@@ -13,6 +13,7 @@ from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 from app.services.runtime_limits import get_runtime_limits
+from app.services.frontier_media import FrontierMediaError, generate_frontier_materials
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
@@ -367,6 +368,32 @@ def download_videos(
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
+    if source == "frontier_ai":
+        logger.info("Cenara Frontier AI material generation requested")
+        try:
+            generated_items = generate_frontier_materials(
+                search_terms=search_terms,
+                video_aspect=video_aspect,
+                requested_duration=max_clip_duration,
+                audio_duration=audio_duration,
+            )
+        except FrontierMediaError as exc:
+            logger.error(f"frontier provider failed safely: {str(exc)}")
+            return []
+
+        material_directory = config.app.get("material_directory", "").strip()
+        if material_directory == "task":
+            material_directory = utils.task_dir(task_id)
+        elif material_directory and not os.path.isdir(material_directory):
+            material_directory = ""
+
+        video_paths = []
+        for item in generated_items:
+            saved = save_video(item.url, save_dir=material_directory)
+            if saved:
+                video_paths.append(saved)
+        logger.success(f"generated {len(video_paths)} frontier AI video clips")
+        return video_paths
     search_videos = search_videos_pexels
     if source == "pixabay":
         search_videos = search_videos_pixabay

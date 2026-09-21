@@ -738,7 +738,7 @@ def render_cenara_product_intro():
     flow_cards = [
         ("🎯", "1. Tema", "Defina nicho, promessa e público do vídeo."),
         ("🧠", "2. Roteiro IA", "Gere ou cole o roteiro com palavras-chave."),
-        ("🎬", "3. Fonte", "Escolha Pexels, Pixabay, Coverr ou arquivos locais."),
+        ("🎬", "3. Fonte", "Escolha Frontier AI, Pexels, Pixabay, Coverr ou arquivos locais."),
         ("🎙️", "4. Voz", "Configure TTS e legendas sem revelar chaves."),
         ("✨", "5. Gerar", "Renderize, revise e exporte manualmente."),
     ]
@@ -870,7 +870,11 @@ def cenara_provider_readiness(selected_video_source="pexels", selected_tts_serve
     pexels_ok = _has_configured_secret(_provider_secret_list("pexels", config_value=config.app.get("pexels_api_keys")))
     pixabay_ok = _has_configured_secret(_provider_secret_list("pixabay", config_value=config.app.get("pixabay_api_keys")))
     coverr_ok = _has_configured_secret(_provider_secret_list("coverr", config_value=config.app.get("coverr_api_keys")))
-    source_ok = selected_video_source in ["pexels", "pixabay", "coverr", "local"]
+    frontier_ok = _has_configured_secret(os.getenv("FAL_KEY", ""))
+    nano_banana_ok = _has_configured_secret(os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", ""))
+    source_ok = selected_video_source in ["pexels", "pixabay", "coverr", "local", "frontier_ai"]
+    if selected_video_source == "frontier_ai":
+        source_ok = frontier_ok
     tts_server_id = selected_tts_server or config.ui.get("tts_server", "azure-tts-v1")
     tts_ok = tts_server_id == voice.NO_VOICE_NAME or bool(config.ui.get("voice_name"))
     if tts_server_id == "azure-tts-v2":
@@ -897,6 +901,8 @@ def cenara_provider_readiness(selected_video_source="pexels", selected_tts_serve
         "Pexels": ("configured" if pexels_ok else "missing", "fonte de vídeo"),
         "Pixabay": ("configured" if pixabay_ok else "missing", "fonte de vídeo"),
         "Coverr": ("configured" if coverr_ok else "optional", "fonte opcional"),
+        "Frontier Video": ("configured" if frontier_ok else "optional", os.getenv("CENARA_FRONTIER_VIDEO_MODEL", "seedance-2")),
+        "Nano Banana": ("configured" if nano_banana_ok else "optional", os.getenv("CENARA_NANO_BANANA_MODEL", "gemini-3.1-flash-image")),
         "Fonte de vídeo": ("configured" if source_ok else "blocked", selected_video_source),
         "Voz/TTS": ("configured" if tts_ok else "blocked", tts_server_id),
         "FFmpeg": ("configured" if render_ok else "blocked", ffmpeg_binary or "não encontrado"),
@@ -1031,11 +1037,11 @@ def cenara_validate_generation_payload(payload, uploaded_audio=None, readiness=N
     errors = []
     if not payload.video_subject and not payload.video_script:
         payload.video_script = cenara_build_local_script_from_brief(payload)
-    if payload.video_source not in ["pexels", "pixabay", "coverr", "local"]:
+    if payload.video_source not in ["pexels", "pixabay", "coverr", "local", "frontier_ai"]:
         errors.append("Configure uma fonte de vídeo, uma chave de provedor ou envie uma mídia local.")
     if payload.video_source == "local" and not getattr(payload, "video_materials", None):
         errors.append("Envie um arquivo local ou selecione Pexels/Pixabay/Coverr.")
-    if payload.video_script and payload.video_source in ["pexels", "pixabay", "coverr"] and not payload.video_terms:
+    if payload.video_script and payload.video_source in ["pexels", "pixabay", "coverr", "frontier_ai"] and not payload.video_terms:
         errors.append("Informe palavras-chave manuais ou preencha tema/nicho/público/promessa/CTA para a Cenara derivar termos seguros sem LLM.")
     llm_status = readiness.get("LLM", ("missing", ""))[0] if readiness else "missing"
     if not payload.video_script:
@@ -1450,13 +1456,15 @@ def _cenara_provider_enabled(provider: str) -> bool:
         return _has_configured_secret(_provider_secret_list("pixabay", config_value=config.app.get("pixabay_api_keys")))
     if provider == "coverr":
         return _has_configured_secret(_provider_secret_list("coverr", config_value=config.app.get("coverr_api_keys")))
+    if provider == "frontier_ai":
+        return _has_configured_secret(os.getenv("FAL_KEY", ""))
     return False
 
 
 def _cenara_provider_order(selected: str):
     ordered = []
-    for provider in [selected, "pexels", "pixabay", "coverr"]:
-        if provider in ["pexels", "pixabay", "coverr"] and provider not in ordered and _cenara_provider_enabled(provider):
+    for provider in [selected, "frontier_ai", "pexels", "pixabay", "coverr"]:
+        if provider in ["frontier_ai", "pexels", "pixabay", "coverr"] and provider not in ordered and _cenara_provider_enabled(provider):
             ordered.append(provider)
     ordered.append("local_visual_fallback")
     return ordered
@@ -1650,6 +1658,8 @@ def cenara_runtime_diagnostics():
         "ImageMagick": shutil.which("magick") or shutil.which("convert") or "opcional/não encontrado",
         "Pasta de saída": "ok" if output_dir.exists() and os.access(output_dir, os.W_OK) else "indisponível",
         "Pasta de tarefas": "ok" if tasks_dir.exists() or os.access(output_dir, os.W_OK) else "será criada ao gerar",
+        "Frontier AI": "pronto" if os.getenv("FAL_KEY") else "aguardando FAL_KEY",
+        "Nano Banana": "pronto" if (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")) else "aguardando GEMINI_API_KEY",
     }
 
 
@@ -1691,13 +1701,26 @@ def cenara_render_command_center(params, selected_tts_server):
             palavras_chave = st.text_area("Palavras-chave opcionais", value=st.session_state.get("video_terms", ""), key="cenara_palavras_chave")
             formato = st.selectbox("Formato", ["9:16", "1:1", "16:9"], key="cenara_formato")
             duracao = st.selectbox("Duração", [3, 4, 5, 6, 7, 8, 9, 10], key="cenara_duracao")
-            fonte_video = st.selectbox("Fonte do vídeo", ["pexels", "pixabay", "coverr", "local"], index=["pexels", "pixabay", "coverr", "local"].index(params.video_source if params.video_source in ["pexels", "pixabay", "coverr", "local"] else "pexels"), key="cenara_fonte_video")
+            _video_sources = ["frontier_ai", "pexels", "pixabay", "coverr", "local"]
+            fonte_video = st.selectbox(
+                "Fonte do vídeo",
+                _video_sources,
+                index=_video_sources.index(params.video_source if params.video_source in _video_sources else "frontier_ai"),
+                format_func=lambda value: {
+                    "frontier_ai": "Frontier AI · Seedance / Veo / Kling / Wan",
+                    "pexels": "Pexels",
+                    "pixabay": "Pixabay",
+                    "coverr": "Coverr",
+                    "local": "Mídia local",
+                }.get(value, value),
+                key="cenara_fonte_video",
+            )
             voz_tts = st.text_input("Voz", value=params.voice_name or config.ui.get("voice_name", ""), key="cenara_voz_tts")
             ativar_legendas = st.checkbox("Ativar Legendas", value=bool(getattr(params, "subtitle_enabled", True)), key="cenara_ativar_legendas")
             submitted = st.form_submit_button("Gerar vídeo real", use_container_width=True, type="primary")
     with middle:
         subtitle_label = "Ativas" if getattr(params, "subtitle_enabled", True) else "Desativadas"
-        st.markdown(f'<div class="cenara-workspace-card"><div class="cenara-card-kicker">02 · Build Engine</div><h3>Mídia, voz e estilo</h3><p class="cenara-card-copy">Use Pexels, Pixabay, Coverr ou mídia local; ajuste TTS, áudio, formato e legendas nos controles avançados abaixo.</p><div class="cenara-timeline"><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Fonte de mídia</span><strong>{params.video_source or "auto"}</strong></div><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Voz</span><strong>{config.ui.get("tts_server", "azure")}</strong></div><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Legendas</span><strong>{subtitle_label}</strong></div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="cenara-workspace-card"><div class="cenara-card-kicker">02 · Build Engine</div><h3>Mídia, voz e estilo</h3><p class="cenara-card-copy">Use Frontier AI, Pexels, Pixabay, Coverr ou mídia local; ajuste TTS, áudio, formato e legendas nos controles avançados abaixo.</p><div class="cenara-timeline"><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Fonte de mídia</span><strong>{params.video_source or "auto"}</strong></div><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Voz</span><strong>{config.ui.get("tts_server", "azure")}</strong></div><div class="cenara-timeline-row"><span><span class="cenara-status-dot"></span>Legendas</span><strong>{subtitle_label}</strong></div></div></div>', unsafe_allow_html=True)
         st.info("Os controles completos de mídia, voz, música, subtítulos, transições e renderização continuam disponíveis em Controles avançados MoneyPrinterTurbo.")
     cenara_clear_stale_generation_lock(show_message=True)
     if st.session_state.pop("cenara_stale_lock_released", False):
