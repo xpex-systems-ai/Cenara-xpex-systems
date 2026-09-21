@@ -16,6 +16,17 @@ import requests
 import streamlit as st
 from loguru import logger
 
+from pathlib import Path as _CenaraPath
+
+
+def _render_seedance_first_flight_preview():
+    path = _CenaraPath("/MoneyPrinterTurbo/storage/canary/seedance2-first-flight.mp4")
+    if path.is_file() and path.stat().st_size > 100_000:
+        with st.expander("🎬 Seedance 2 · First Flight", expanded=False):
+            st.caption("Primeiro teste real do Frontier Video Engine. Master preservado do provider.")
+            st.video(str(path))
+            st.caption(f"{path.stat().st_size / 1024 / 1024:.1f} MB · armazenado no volume persistente")
+
 # Add the root directory of the project to the system path to allow importing modules from the project
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if root_dir not in sys.path:
@@ -296,6 +307,7 @@ def require_private_operator_token() -> None:
 
 
 require_private_operator_token()
+_render_seedance_first_flight_preview()
 
 # 定义资源目录
 font_dir = os.path.join(root_dir, "resource", "fonts")
