@@ -48,11 +48,12 @@ def main() -> int:
     )
 
     try:
+        requested_model = os.getenv("CENARA_FRONTIER_VIDEO_MODEL", "seedance-2").strip() or "seedance-2"
         url, model = generate_video_url(
             prompt,
             video_aspect=VideoAspect.landscape,
             duration=5,
-            model_id="seedance-2",
+            model_id=requested_model,
         )
         print(f"SEEDANCE2_CANARY provider_done model={model}")
         with requests.get(url, stream=True, timeout=(30, 300)) as response:
