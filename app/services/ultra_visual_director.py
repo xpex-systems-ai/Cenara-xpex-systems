@@ -15,13 +15,14 @@ class UltraVisualProfile:
 ROMAN_PRECISION = UltraVisualProfile(
     name="roman_precision",
     prompt_suffix=(
-        "scientific-grade optical clarity, extremely clean micro-contrast, controlled highlights, "
-        "deep blacks without crushed detail, precise geometry, realistic physical lighting, "
-        "high dynamic range, cinematic 35mm composition, subtle volumetric atmosphere, "
-        "smooth purposeful camera movement, premium educational documentary aesthetic, "
-        "no text, no watermark, no visual gibberish, no deformed faces, no duplicate limbs"
+        "NASA-grade aerospace documentary cinematography, real clean-room and precision-engineering visual language, "
+        "scientific optical clarity, physically accurate materials, crisp fine detail, neutral whites, controlled highlights, "
+        "deep blacks with preserved shadow detail, subtle cool-magenta scientific color separation, realistic lens behavior, "
+        "wide establishing shots mixed with macro mechanical details, slow dolly and slider movement, restrained depth of field, "
+        "high dynamic range, stable exposure, premium broadcast documentary finish, believable people and hands, "
+        "no synthetic UI, no neon sci-fi fantasy, no generated text, no watermark, no gibberish, no deformed anatomy"
     ),
-    cut_seconds=5.0,
+    cut_seconds=5.5,
     prefer_video_model="cosmos3",
 )
 
