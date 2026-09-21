@@ -27,6 +27,14 @@ def _render_seedance_first_flight_preview():
             st.video(str(path))
             st.caption(f"{path.stat().st_size / 1024 / 1024:.1f} MB · armazenado no volume persistente")
 
+
+    hf_path = _CenaraPath("/MoneyPrinterTurbo/storage/canary/hf-openrouter-first-flight.mp4")
+    if hf_path.is_file() and hf_path.stat().st_size > 100_000:
+        with st.expander("🎬 Hugging Face + OpenRouter · First Flight", expanded=True):
+            st.caption("Primeiro teste real da stack gratuita. OpenRouter dirige; Hugging Face gera.")
+            st.video(str(hf_path))
+            st.caption(f"{hf_path.stat().st_size / 1024 / 1024:.1f} MB · armazenado no volume persistente")
+
 # Add the root directory of the project to the system path to allow importing modules from the project
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if root_dir not in sys.path:
