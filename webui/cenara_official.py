@@ -55,16 +55,16 @@ html,body,[class*="css"]{font-family:Inter,ui-sans-serif,system-ui,-apple-system
 .stApp{background:linear-gradient(180deg,#050b12 0%,#07111c 50%,#040910 100%) !important;}
 .block-container{max-width:1700px !important;padding:0 !important;margin:0 !important;}
 [data-testid="stHeader"],[data-testid="stToolbar"]{background:transparent !important;}
-.cz-shell{min-height:100vh;color:var(--cz-text);display:grid;grid-template-columns:238px minmax(0,1fr);}
-.cz-side{position:sticky;top:0;height:100vh;padding:24px 18px;border-right:1px solid var(--cz-border);background:linear-gradient(180deg,#07111b 0%,#050a10 100%);box-sizing:border-box;}
+.cz-shell{min-height:100vh;color:var(--cz-text);display:grid;grid-template-columns:238px minmax(0,1fr);align-items:start;overflow:clip;}
+.cz-side{position:relative;min-height:100vh;padding:24px 18px;border-right:1px solid var(--cz-border);background:linear-gradient(180deg,#07111b 0%,#050a10 100%);box-sizing:border-box;}
 .cz-brand{display:flex;align-items:center;gap:12px;margin:2px 10px 30px;}
 .cz-mark{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:conic-gradient(from 220deg,var(--cz-cyan),var(--cz-blue),#7c3aed,var(--cz-cyan));clip-path:polygon(0 0,100% 50%,0 100%);filter:drop-shadow(0 0 14px rgba(18,215,240,.3));}
 .cz-name{font-size:26px;font-weight:900;letter-spacing:.12em}.cz-tagline{font-size:9px;letter-spacing:.16em;color:#a8b5c4;margin-top:2px;}
 .cz-nav{display:grid;gap:8px}.cz-nav a{display:flex;align-items:center;gap:12px;color:#c6d2df;text-decoration:none;padding:12px 14px;border-radius:11px;font-weight:700;font-size:14px;border:1px solid transparent;}
 .cz-nav a:hover,.cz-nav a.active{color:#fff;background:linear-gradient(90deg,rgba(20,67,103,.68),rgba(20,41,62,.65));border-color:rgba(56,189,248,.16);}
-.cz-nav .ico{width:22px;text-align:center;color:#b6c5d5}.cz-pro{position:absolute;left:18px;right:18px;bottom:18px;padding:18px;border:1px solid rgba(56,189,248,.22);border-radius:18px;background:linear-gradient(145deg,rgba(22,48,70,.75),rgba(63,34,24,.46));}
+.cz-nav .ico{width:22px;text-align:center;color:#b6c5d5}.cz-pro{position:relative;margin-top:28px;padding:18px;border:1px solid rgba(56,189,248,.22);border-radius:18px;background:linear-gradient(145deg,rgba(22,48,70,.75),rgba(63,34,24,.46));}
 .cz-pro b{color:#54d8ff}.cz-pro p{color:#aebdcc;font-size:13px;line-height:1.55}.cz-upgrade{display:block;text-align:center;padding:12px;border-radius:12px;color:#fff;text-decoration:none;font-weight:800;background:linear-gradient(90deg,#00d4ff,#2563eb,#ff8a3d);}
-.cz-main{min-width:0}.cz-top{height:64px;border-bottom:1px solid var(--cz-border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;box-sizing:border-box;background:rgba(4,10,17,.82);backdrop-filter:blur(16px);}
+.cz-main{min-width:0;overflow:hidden}.cz-top{height:64px;border-bottom:1px solid var(--cz-border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;box-sizing:border-box;background:rgba(4,10,17,.82);backdrop-filter:blur(16px);}
 .cz-search{width:min(580px,52vw);padding:11px 15px;border:1px solid var(--cz-border);border-radius:11px;background:#0c1724;color:#91a1b3;font-size:14px}.cz-user{display:flex;align-items:center;gap:10px}.cz-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#0ea5e9,#7c3aed);display:grid;place-items:center;font-weight:900}.cz-user small{display:block;color:#45cfff;margin-top:2px}
 .cz-content{padding:16px 22px 34px}.cz-hero{min-height:268px;display:grid;grid-template-columns:minmax(0,.96fr) minmax(460px,1.5fr);overflow:hidden;border-bottom:1px solid var(--cz-border);background:#06101a;}
 .cz-hero-copy{padding:26px 26px 22px;display:flex;flex-direction:column;justify-content:center}.cz-hero h1{font-size:clamp(36px,4vw,60px);line-height:.98;letter-spacing:-.05em;margin:0 0 16px;color:#fff}.cz-gradient{background:linear-gradient(90deg,#12d7f0,#4f8df9);-webkit-background-clip:text;background-clip:text;color:transparent}.cz-hero p{color:#c1ccd8;font-size:16px;max-width:620px;line-height:1.5}.cz-cta{display:inline-flex;align-items:center;gap:14px;width:max-content;margin-top:10px;padding:14px 22px;border-radius:16px;background:linear-gradient(90deg,#00cff5,#2563eb,#ff8b42);color:#fff;text-decoration:none;font-weight:900;box-shadow:0 12px 38px rgba(18,215,240,.18);}
@@ -73,11 +73,11 @@ linear-gradient(90deg,#06101a 0%,rgba(6,16,26,.08) 38%,rgba(6,16,26,.12) 100%),
 url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=85') center 46%/cover no-repeat;}
 .cz-hero-art:after{content:"IDEIAS\\A MOVEM\\A O AMANHÃ";white-space:pre;position:absolute;right:9%;top:26%;font-size:20px;letter-spacing:.32em;line-height:1.7;color:#fff;text-shadow:0 2px 30px #000;}
 .cz-flow{display:grid;grid-template-columns:repeat(8,1fr);gap:0;margin:0;border:1px solid var(--cz-border);border-radius:16px;overflow:hidden;background:#091420}.cz-flow div{padding:16px 12px;border-right:1px solid var(--cz-border);min-height:72px}.cz-flow div:last-child{border-right:0}.cz-flow b{display:block;font-size:13px}.cz-flow small{color:#8393a5;font-size:10px}.cz-flow span{display:inline-grid;place-items:center;width:30px;height:30px;border:1px solid rgba(148,163,184,.2);border-radius:9px;margin-bottom:7px;background:#101d2b}
-.cz-section{margin-top:18px}.cz-section-head{display:flex;align-items:end;justify-content:space-between;margin-bottom:10px}.cz-section-head h2{font-size:21px;margin:0}.cz-section-head p{display:inline;color:#8393a5;font-size:12px;margin-left:10px}.cz-more{color:#42cfff;font-size:12px;text-decoration:none;font-weight:800}
+.cz-statusbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0 2px}.cz-statusitem{padding:10px 12px;border:1px solid var(--cz-border);border-radius:11px;background:#091420;color:#c6d2df;font-size:11px}.cz-statusitem b{display:block;color:#fff;font-size:12px;margin-bottom:2px}.cz-ok{color:#4ade80}.cz-warn{color:#fbbf24}.cz-section{margin-top:18px}.cz-section-head{display:flex;align-items:end;justify-content:space-between;margin-bottom:10px}.cz-section-head h2{font-size:21px;margin:0}.cz-section-head p{display:inline;color:#8393a5;font-size:12px;margin-left:10px}.cz-more{color:#42cfff;font-size:12px;text-decoration:none;font-weight:800}
 .cz-grid6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.cz-card{position:relative;min-width:0;border:1px solid var(--cz-border);border-radius:12px;overflow:hidden;background:#091420}.cz-thumb{height:118px;background-size:cover;background-position:center;position:relative}.cz-thumb:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 35%,rgba(2,8,15,.92) 100%)}.cz-card-body{padding:9px 10px 11px}.cz-card b{font-size:13px}.cz-card small{color:#8797aa;display:block;margin-top:3px;font-size:11px}.cz-overlay{position:absolute;left:10px;bottom:10px;z-index:2;color:#fff}.cz-duration{position:absolute;right:8px;bottom:8px;z-index:2;font-size:10px;background:rgba(2,8,15,.8);border:1px solid rgba(255,255,255,.18);padding:3px 6px;border-radius:6px}.cz-likes{position:absolute;right:8px;bottom:8px;z-index:2;font-size:10px;color:#fff}
 .cz-studio-head{padding:18px 24px 8px;border-bottom:1px solid var(--cz-border);background:#06101a}.cz-studio-head h1{margin:0;font-size:28px}.cz-studio-head p{margin:6px 0 0;color:#8ea0b4}.cz-back{display:inline-block;margin-bottom:12px;color:#49d3ff;text-decoration:none;font-weight:800}
 @media(max-width:1200px){.cz-grid6{grid-template-columns:repeat(3,1fr)}.cz-flow{grid-template-columns:repeat(4,1fr)}.cz-hero{grid-template-columns:1fr}.cz-hero-art{min-height:240px}}
-@media(max-width:850px){.cz-shell{grid-template-columns:1fr}.cz-side{position:relative;height:auto}.cz-pro{position:relative;left:auto;right:auto;bottom:auto;margin-top:16px}.cz-top{padding:0 14px}.cz-search{width:64vw}.cz-content{padding:12px}.cz-grid6{grid-template-columns:repeat(2,1fr)}.cz-flow{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:850px){.cz-shell{grid-template-columns:1fr}.cz-side{position:relative;min-height:auto}.cz-pro{position:relative;margin-top:16px}.cz-top{padding:0 14px}.cz-search{width:64vw}.cz-content{padding:12px}.cz-grid6{grid-template-columns:repeat(2,1fr)}.cz-flow{grid-template-columns:repeat(2,1fr)}}
 </style>
 """,
         unsafe_allow_html=True,
@@ -92,12 +92,12 @@ def _html_block(value: str) -> str:
 def _sidebar(active: str = "home") -> str:
     items = [
         ("home", "⌂", "Início", "?view=home"),
-        ("projects", "▣", "Projetos", "?view=home#projetos"),
+        ("projects", "▣", "Projetos", "?view=projects"),
         ("studio", "▷", "Criar Vídeo", "?view=studio"),
-        ("library", "▤", "Biblioteca", "?view=home#biblioteca"),
-        ("models", "▦", "Modelos", "?view=home#modelos"),
-        ("media", "▧", "Mídia", "?view=studio"),
-        ("settings", "⚙", "Configurações", "?view=studio#config"),
+        ("library", "▤", "Biblioteca", "?view=library"),
+        ("models", "▦", "Modelos", "?view=models"),
+        ("media", "▧", "Mídia", "?view=media"),
+        ("settings", "⚙", "Configurações", "?view=settings"),
     ]
     nav = "".join(
         f'<a class="{"active" if key == active else ""}" href="{href}"><span class="ico">{ico}</span>{label}</a>'
@@ -159,6 +159,12 @@ def render_official_home() -> None:
       <div class="cz-hero-art"></div>
     </section>
     <div class="cz-content">
+      <div class="cz-statusbar">
+        <div class="cz-statusitem"><b>Diretor IA</b><span class="cz-ok">● OpenRouter conectado</span></div>
+        <div class="cz-statusitem"><b>Render local</b><span class="cz-ok">● FFmpeg pronto</span></div>
+        <div class="cz-statusitem"><b>Armazenamento</b><span class="cz-ok">● Volume persistente</span></div>
+        <div class="cz-statusitem"><b>Vídeo generativo</b><span class="cz-warn">● depende de capacidade do provider</span></div>
+      </div>
       <div class="cz-flow">{flow_html}</div>
       <section class="cz-section" id="modelos"><div class="cz-section-head"><div><h2>Estilos de vídeo <p>Escolha um estilo e comece mais rápido.</p></h2></div><a class="cz-more" href="?view=studio">Ver todos →</a></div><div class="cz-grid6">{_cards_html(STYLE_CARDS)}</div></section>
       <section class="cz-section"><div class="cz-section-head"><div><h2>Modelos em destaque <p>Estruturas prontas para acelerar sua produção.</p></h2></div><a class="cz-more" href="?view=studio">Ver todos →</a></div><div class="cz-grid6">{_cards_html(TEMPLATES, template=True)}</div></section>
@@ -179,6 +185,38 @@ def render_official_studio_header() -> None:
   <main class="cz-main">
     {_topbar()}
     <section class="cz-studio-head"><a class="cz-back" href="?view=home">← Voltar ao início</a><h1>Criar vídeo</h1><p>Direção, roteiro, mídia, voz, legendas, montagem e exportação em um fluxo único.</p></section>
+  </main>
+</div>
+"""),
+        unsafe_allow_html=True,
+    )
+
+
+
+def render_official_section(view: str) -> None:
+    labels = {
+        "projects": ("Projetos", "Gerencie trabalhos, versões e renders da Cenara."),
+        "library": ("Biblioteca", "Seus vídeos, exports e materiais persistidos."),
+        "models": ("Modelos", "Escolha um estilo e entre no estúdio com uma estrutura pronta."),
+        "media": ("Mídia", "Envie materiais próprios ou selecione fontes conectadas."),
+        "settings": ("Configurações", "Providers, voz, legendas, render e integrações."),
+    }
+    title, copy = labels.get(view, ("Cenara", ""))
+    st.markdown(
+        _html_block(f"""
+<div class="cz-shell">
+  {_sidebar(view if view in labels else "home")}
+  <main class="cz-main">
+    {_topbar()}
+    <section class="cz-studio-head">
+      <a class="cz-back" href="?view=home">← Voltar ao início</a>
+      <h1>{html.escape(title)}</h1>
+      <p>{html.escape(copy)}</p>
+      <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="cz-cta" href="?view=studio">Abrir Estúdio de Vídeo →</a>
+        <a class="cz-more" style="padding:14px 2px" href="?view=home">Ver página inicial</a>
+      </div>
+    </section>
   </main>
 </div>
 """),
