@@ -333,16 +333,27 @@ def structured_storyboard_video(task_dir: Path, shot_specs: list[dict], aspect: 
             print(f"CENARA_STRUCTURED_SHOT index={idx+1} clip=fail detail={' '.join(str(exc).split())[:180]}")
     if len(clips) < 3:
         return None
-    listing = task_dir / "structured-shots.txt"
-    listing.write_text("".join(f"file '{p}'\n" for p in clips), encoding="utf-8")
     out = task_dir / "cenara-structured-storyboard.mp4"
     try:
-        subprocess.run([ffmpeg,"-y","-f","concat","-safe","0","-i",str(listing),"-t",str(total_seconds),"-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-r","30","-movflags","+faststart",str(out)],check=True,capture_output=True,text=True,timeout=300)
+        inputs=[]
+        filters=[]
+        labels=[]
+        for i, clip in enumerate(clips):
+            inputs += ["-i", str(clip)]
+            label=f"v{i}"
+            filters.append(f"[{i}:v]fps=30,scale={w}:{h},setsar=1,setpts=PTS-STARTPTS[{label}]")
+            labels.append(f"[{label}]")
+        filters.append("".join(labels)+f"concat=n={len(clips)}:v=1:a=0[vout]")
+        cmd=[ffmpeg,"-y",*inputs,"-filter_complex",";".join(filters),"-map","[vout]","-t",str(total_seconds),"-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-r","30","-movflags","+faststart",str(out)]
+        subprocess.run(cmd,check=True,capture_output=True,text=True,timeout=300)
         if valid_mp4(out):
             print(f"CENARA_STRUCTURED_STORYBOARD status=ready clips={len(clips)} bytes={out.stat().st_size}")
             return out
+    except subprocess.CalledProcessError as exc:
+        detail=" ".join((exc.stderr or str(exc)).split())[-500:]
+        print(f"CENARA_STRUCTURED_STORYBOARD status=fail detail={detail}")
     except Exception as exc:
-        print(f"CENARA_STRUCTURED_STORYBOARD status=fail detail={' '.join(str(exc).split())[:220]}")
+        print(f"CENARA_STRUCTURED_STORYBOARD status=fail detail={' '.join(str(exc).split())[:500]}")
     return None
 
 def local_video(task_dir: Path, prompt: str, aspect: str, seconds: int) -> Path:
