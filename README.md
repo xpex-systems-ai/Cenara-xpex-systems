@@ -6,6 +6,12 @@
 
 ---
 
+## Related ecosystem
+
+- [RustChain](https://rustchain.org) — Cenara uses RustChain/Elyan Labs bounty workflows as a real production target for source-grounded technical videos, including the Proof-of-Antiquity short package maintained in this repository.
+- [BoTTube](https://bottube.ai) — a relevant off-platform publication target for Cenara-generated videos when a bounty or distribution workflow requires a public video URL.
+
+
 <div align="center">
 <h1 align="center">MoneyPrinterTurbo 💸</h1>
 
