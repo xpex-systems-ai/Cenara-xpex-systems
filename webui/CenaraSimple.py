@@ -303,11 +303,21 @@ def structured_storyboard_video(task_dir: Path, shot_specs: list[dict], aspect: 
         seconds = max(2.0, weights[idx] * scale)
         prompt = str(spec.get("prompt") or "").strip()
         image = task_dir / f"structured-shot-{idx+1}.jpg"
-        ok = pollinations_image(prompt, image, image_w, image_h, seed_base + idx * 131)
+        ok = image.is_file() and image.stat().st_size > 20000
+        if not ok:
+            for attempt in range(3):
+                ok = pollinations_image(prompt, image, image_w, image_h, seed_base + idx * 131 + attempt * 997)
+                if ok:
+                    break
+                time.sleep(1.5 * (attempt + 1))
         print(f"CENARA_STRUCTURED_SHOT index={idx+1} image={'ok' if ok else 'fail'}")
         if not ok:
             continue
         clip = task_dir / f"structured-shot-{idx+1}.mp4"
+        if valid_mp4(clip):
+            clips.append(clip)
+            print(f"CENARA_STRUCTURED_SHOT index={idx+1} clip=reused bytes={clip.stat().st_size}")
+            continue
         frames = max(60, int(seconds * 30))
         if idx % 2 == 0:
             zoompan = f"zoompan=z='min(zoom+0.0018,1.13)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={w}x{h}:fps=30"
@@ -436,7 +446,7 @@ def render_bounty_16601_once():
         if not visual or not valid_mp4(visual):
             visual=storyboard_video(task_dir,visual_prompt,"9:16",int(duration)+1)
         if not visual or not valid_mp4(visual):
-            visual=local_video(task_dir,visual_prompt,"9:16",int(duration)+1)
+            raise RuntimeError("structured visual providers unavailable; keeping prior library render instead of fabricating a local fallback")
         ffmpeg=shutil.which("ffmpeg")
         subprocess.run([ffmpeg,"-y","-i",str(visual),"-i",str(audio),"-map","0:v:0","-map","1:a:0","-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(final)],check=True,capture_output=True,text=True,timeout=300)
         if not valid_mp4(final): raise RuntimeError("final v2 mp4 invalid")
