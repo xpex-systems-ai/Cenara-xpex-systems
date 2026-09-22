@@ -22,7 +22,7 @@ from app.services.academy_agent import AcademyAgentError, run_academy_agent
 from app.services.academy_handoff import build_handoff, validate_handoff
 from app.services.open_video_router import OpenVideoRouterError, generate_open_video, configured_models
 from app.services.avatar_router import configured_avatar_engines
-from app.services.media_vault import registered_sources
+from app.services.media_vault import registered_sources, load_index, search_vault, ingest_manifest
 
 STORAGE = ROOT / "storage"
 TASKS = STORAGE / "tasks"
@@ -430,7 +430,19 @@ if mode == "XPEX Media Vault":
     for item in shown[:50]:
         st.markdown(f"**{item.get('id','-')}** · status: \`{item.get('status','registered')}\` · direitos: \`{item.get('rights','review_required')}\`")
         st.caption(item.get("url",""))
-    st.info("Próxima camada: importação autorizada → análise por cenas → tags/embeddings → busca semântica → montagem automática.")
+    idx=load_index()
+    st.caption("Indexação: "+json.dumps(idx.get("counts",{}),ensure_ascii=False))
+    if st.button("🧠 INDEXAR LOTE DO VAULT", use_container_width=True):
+        with st.spinner("Importando, analisando cenas e criando memória audiovisual..."):
+            result=ingest_manifest()
+        st.success("Indexação concluída: "+json.dumps(result.get("counts",{}),ensure_ascii=False))
+        st.rerun()
+    if q.strip():
+        matches=search_vault(q,limit=12)
+        st.markdown("### Resultados semânticos")
+        for x in matches:
+            st.write(x.get("id"), "score", x.get("score"), "direitos", x.get("rights"))
+    st.info("Pipeline ativo: Drive → ffprobe → frames/cenas → visão multimodal → tags → busca semântica → seleção com trava de direitos.")
     st.stop()
 
 left,right=st.columns([1.2,1],gap="large")
