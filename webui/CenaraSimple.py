@@ -281,6 +281,60 @@ def storyboard_video(task_dir: Path, visual_prompt: str, aspect: str, seconds: i
         print(f"CENARA_GENERATION stage=motion_storyboard status=fail detail={' '.join(str(exc).split())[:260]}")
     return None
 
+
+def structured_storyboard_video(task_dir: Path, shot_specs: list[dict], aspect: str, total_seconds: int) -> Path | None:
+    """Render each structured shot independently so every scene has its own semantic image."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or not shot_specs:
+        return None
+    sizes = {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)}
+    w, h = sizes.get(aspect, (720, 1280))
+    image_w, image_h = (1024, 576) if aspect == "16:9" else ((576, 1024) if aspect == "9:16" else (768, 768))
+    weights = []
+    for s in shot_specs:
+        try:
+            weights.append(max(1.0, float(s.get("seconds") or 1)))
+        except Exception:
+            weights.append(1.0)
+    scale = float(total_seconds) / max(1.0, sum(weights))
+    clips = []
+    seed_base = int(time.time()) % 100000
+    for idx, spec in enumerate(shot_specs):
+        seconds = max(2.0, weights[idx] * scale)
+        prompt = str(spec.get("prompt") or "").strip()
+        image = task_dir / f"structured-shot-{idx+1}.jpg"
+        ok = pollinations_image(prompt, image, image_w, image_h, seed_base + idx * 131)
+        print(f"CENARA_STRUCTURED_SHOT index={idx+1} image={'ok' if ok else 'fail'}")
+        if not ok:
+            continue
+        clip = task_dir / f"structured-shot-{idx+1}.mp4"
+        frames = max(60, int(seconds * 30))
+        if idx % 2 == 0:
+            zoompan = f"zoompan=z='min(zoom+0.0018,1.13)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={w}x{h}:fps=30"
+        else:
+            zoompan = f"zoompan=z='min(zoom+0.0016,1.12)':x='min(iw-iw/zoom,iw/2-(iw/zoom/2)+on*1.2)':y='ih/2-(ih/zoom/2)':d={frames}:s={w}x{h}:fps=30"
+        vf = f"crop=iw:ih-28:0:0,scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},{zoompan},eq=contrast=1.05:saturation=1.05,format=yuv420p"
+        try:
+            subprocess.run([ffmpeg,"-y","-loop","1","-i",str(image),"-vf",vf,"-t",f"{seconds:.2f}","-r","30","-an","-c:v","libx264","-preset","veryfast","-crf","19","-movflags","+faststart",str(clip)],check=True,capture_output=True,text=True,timeout=180)
+            if valid_mp4(clip):
+                clips.append(clip)
+                print(f"CENARA_STRUCTURED_SHOT index={idx+1} clip=ok bytes={clip.stat().st_size}")
+        except Exception as exc:
+            print(f"CENARA_STRUCTURED_SHOT index={idx+1} clip=fail detail={' '.join(str(exc).split())[:180]}")
+    if len(clips) < 3:
+        return None
+    listing = task_dir / "structured-shots.txt"
+    listing.write_text("".join(f"file '{p}'\n" for p in clips), encoding="utf-8")
+    out = task_dir / "cenara-structured-storyboard.mp4"
+    try:
+        subprocess.run([ffmpeg,"-y","-f","concat","-safe","0","-i",str(listing),"-t",str(total_seconds),"-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-r","30","-movflags","+faststart",str(out)],check=True,capture_output=True,text=True,timeout=300)
+        if valid_mp4(out):
+            print(f"CENARA_STRUCTURED_STORYBOARD status=ready clips={len(clips)} bytes={out.stat().st_size}")
+            return out
+    except Exception as exc:
+        print(f"CENARA_STRUCTURED_STORYBOARD status=fail detail={' '.join(str(exc).split())[:220]}")
+    return None
+
 def local_video(task_dir: Path, prompt: str, aspect: str, seconds: int) -> Path:
     """Guaranteed local MP4 fallback with animated graphics; no external provider/font dependency."""
     ffmpeg = shutil.which("ffmpeg")
@@ -352,9 +406,9 @@ def render_bounty_16601_once():
     if os.getenv("CENARA_BOUNTY_16601_GENERATE_ON_START","false").lower() != "true": return None
     task_dir = TASKS / "bounty-16601-final-v2"
     task_dir.mkdir(parents=True, exist_ok=True)
-    final = task_dir / "xpex-bounty-16601-final-v2.mp4"
+    final = task_dir / "xpex-bounty-16601-final-v3.mp4"
     if valid_mp4(final):
-        print(f"CENARA_BOUNTY_16601_V2 status=ready path={final} bytes={final.stat().st_size}")
+        print(f"CENARA_BOUNTY_16601_V3 status=ready path={final} bytes={final.stat().st_size}")
         return final
     audio = task_dir / "voice.mp3"
     try:
@@ -369,25 +423,28 @@ def render_bounty_16601_once():
           "format":"9:16 vertical, premium photoreal cinematic documentary, crisp HD, physically plausible light, shallow depth of field, subtle film grain, no gibberish text, no watermark",
           "negative":"generic server-room loops, four-quadrant abstract panels, random UI, illegible typography, duplicated objects, distorted computers, fake logos, stock-footage look",
           "shots":[
-            {"t":"0-7","prompt":"hero macro shot of one authentic late-1990s beige desktop computer on a dark workbench, real motherboard and CPU visible, opposite side a translucent wall of identical virtual-machine windows multiplying into the distance, dramatic cyan rim light and warm orange practical light, visual contrast physical versus virtual"},
-            {"t":"7-17","prompt":"close cinematic hardware attestation sequence: camera glides across physical motherboard, CPU package, RAM and firmware chip while precise luminous fingerprint rings scan the components; clean data particles converge into one signed digital attestation token, no readable fake text"},
-            {"t":"17-29","prompt":"clear educational visualization integrated into a realistic lab: one physical CPU at center connected to exactly one voting node, then three distinct verification layers appear as icons: physical hardware presence, age/antiquity timeline, fingerprint confidence shield; premium documentary motion graphics"},
-            {"t":"29-41","prompt":"anti-emulation test: rows of synthetic virtual machines attempt to pass through a luminous hardware verification gate; suspicious VM instances turn dim and their reward meters visibly collapse while one verified physical vintage computer remains bright and trusted, no invented numeric multiplier"},
-            {"t":"41-55","prompt":"final hero shot of verified vintage computer with subtle fingerprint halo and shield, physical silicon highlighted, virtual machines fading into darkness behind it; elegant cinematic end frame with empty safe title area, confident technical documentary finish"}
+            {"t":"0-7","seconds":7,"prompt":"hero macro shot of one authentic late-1990s beige desktop computer on a dark workbench, real motherboard and CPU visible, opposite side a translucent wall of identical virtual-machine windows multiplying into the distance, dramatic cyan rim light and warm orange practical light, visual contrast physical versus virtual"},
+            {"t":"7-17","seconds":10,"prompt":"close cinematic hardware attestation sequence: camera glides across physical motherboard, CPU package, RAM and firmware chip while precise luminous fingerprint rings scan the components; clean data particles converge into one signed digital attestation token, no readable fake text"},
+            {"t":"17-29","seconds":12,"prompt":"clear educational visualization integrated into a realistic lab: one physical CPU at center connected to exactly one voting node, then three distinct verification layers appear as icons: physical hardware presence, age and antiquity timeline, fingerprint confidence shield; premium documentary motion graphics"},
+            {"t":"29-41","seconds":12,"prompt":"anti-emulation test: rows of synthetic virtual machines attempt to pass through a luminous hardware verification gate; suspicious VM instances turn dim and their reward meters visibly collapse while one verified physical vintage computer remains bright and trusted, no invented numeric multiplier"},
+            {"t":"41-55","seconds":14,"prompt":"final hero shot of verified vintage computer with subtle fingerprint halo and shield, physical silicon highlighted, virtual machines fading into darkness behind it; elegant cinematic end frame with empty safe title area, confident technical documentary finish"}
           ]
         }
         (task_dir/"visual-handoff.json").write_text(json.dumps(handoff,ensure_ascii=False,indent=2),encoding="utf-8")
         visual_prompt=("Create a coherent five-shot vertical technical documentary, not an abstract montage. "+handoff["format"]+". Sequence: "+ " THEN ".join(x["prompt"] for x in handoff["shots"]) + ". Avoid: "+handoff["negative"])
-        visual=storyboard_video(task_dir,visual_prompt,"9:16",int(duration)+1)
-        if not visual or not valid_mp4(visual): visual=local_video(task_dir,visual_prompt,"9:16",int(duration)+1)
+        visual=structured_storyboard_video(task_dir,handoff["shots"],"9:16",int(duration)+1)
+        if not visual or not valid_mp4(visual):
+            visual=storyboard_video(task_dir,visual_prompt,"9:16",int(duration)+1)
+        if not visual or not valid_mp4(visual):
+            visual=local_video(task_dir,visual_prompt,"9:16",int(duration)+1)
         ffmpeg=shutil.which("ffmpeg")
         subprocess.run([ffmpeg,"-y","-i",str(visual),"-i",str(audio),"-map","0:v:0","-map","1:a:0","-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(final)],check=True,capture_output=True,text=True,timeout=300)
         if not valid_mp4(final): raise RuntimeError("final v2 mp4 invalid")
-        (task_dir/"manifest.json").write_text(json.dumps({"bounty":16601,"package":"C","version":"V2","format":"9:16","visual_standard":"premium photoreal technical documentary","script":"bounties/16601/package-c-vm-fingerprint/script.md","sources":"bounties/16601/package-c-vm-fingerprint/SOURCES.md","human_review_required_before_submission":True},indent=2),encoding="utf-8")
+        (task_dir/"manifest.json").write_text(json.dumps({"bounty":16601,"package":"C","version":"V3","format":"9:16","visual_standard":"premium photoreal technical documentary","script":"bounties/16601/package-c-vm-fingerprint/script.md","sources":"bounties/16601/package-c-vm-fingerprint/SOURCES.md","human_review_required_before_submission":True},indent=2),encoding="utf-8")
         print(f"CENARA_BOUNTY_16601_V2 status=ready path={final} bytes={final.stat().st_size}")
         return final
     except Exception as exc:
-        print(f"CENARA_BOUNTY_16601_V2 status=failed type={type(exc).__name__} detail={' '.join(str(exc).split())[:240]}")
+        print(f"CENARA_BOUNTY_16601_V3 status=failed type={type(exc).__name__} detail={' '.join(str(exc).split())[:240]}")
         return None
 
 def recent(limit=6):
