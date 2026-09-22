@@ -344,6 +344,38 @@ def generate(prompt: str, style: str, aspect: str, seconds: int):
     target = local_video(task_dir, prompt, aspect, seconds)
     return target, "local_motion", provider_error
 
+# XPEX_BOUNTY_16601_AUTORENDER_V1
+BOUNTY_16601_SCRIPT = """What stops someone from spinning up a thousand virtual machines and pretending they're rare vintage computers? RustChain's answer is Proof-of-Antiquity. A miner collects hardware signals, runs fingerprint checks, and submits a signed attestation before it can participate in an epoch. The protocol doesn't rely on CPU speed alone. Its documentation says baseline participation follows one CPU, one vote, while reward weight also depends on validated hardware presence, antiquity, fingerprint confidence, and anti-emulation checks. That makes synthetic scale expensive instead of useful: detected virtual machines receive only a tiny fraction of normal mining rewards. The idea is simple: prove the machine is real, then reward scarce physical hardware. That's Proof-of-Antiquity."""
+
+def render_bounty_16601_once():
+    if os.getenv("CENARA_BOUNTY_16601_GENERATE_ON_START","false").lower() != "true": return None
+    task_dir = TASKS / "bounty-16601-final"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    final = task_dir / "xpex-bounty-16601-final.mp4"
+    if valid_mp4(final):
+        print(f"CENARA_BOUNTY_16601 status=ready path={final} bytes={final.stat().st_size}")
+        return final
+    audio = task_dir / "voice.mp3"
+    try:
+        subprocess.run([os.sys.executable,"-m","edge_tts","--voice","en-US-AndrewNeural","--rate","+2%","--text",BOUNTY_16601_SCRIPT,"--write-media",str(audio)],check=True,capture_output=True,text=True,timeout=180)
+        probe=shutil.which("ffprobe"); duration=55.0
+        if probe:
+            q=subprocess.run([probe,"-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1",str(audio)],capture_output=True,text=True,timeout=20)
+            try: duration=max(45.0,min(59.0,float(q.stdout.strip())+0.4))
+            except Exception: pass
+        visual_prompt=("Vertical 9:16 technical cinematic explainer about RustChain Proof-of-Antiquity, physical vintage computer versus multiplying virtual machines, hardware fingerprint scanner, signed attestation pipeline, one CPU one vote diagram, anti-emulation shield, reward meter collapsing for synthetic VM, original generated graphics, dark futuristic interface, cyan and orange highlights, no logos, no watermark")
+        visual=storyboard_video(task_dir,visual_prompt,"9:16",int(duration)+1)
+        if not visual or not valid_mp4(visual): visual=local_video(task_dir,visual_prompt,"9:16",int(duration)+1)
+        ffmpeg=shutil.which("ffmpeg")
+        subprocess.run([ffmpeg,"-y","-i",str(visual),"-i",str(audio),"-map","0:v:0","-map","1:a:0","-c:v","libx264","-preset","veryfast","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(final)],check=True,capture_output=True,text=True,timeout=300)
+        if not valid_mp4(final): raise RuntimeError("final mp4 invalid")
+        (task_dir/"manifest.json").write_text(json.dumps({"bounty":16601,"package":"C","format":"9:16","script":"bounties/16601/package-c-vm-fingerprint/script.md","sources":"bounties/16601/package-c-vm-fingerprint/SOURCES.md","human_review_required_before_submission":True},indent=2),encoding="utf-8")
+        print(f"CENARA_BOUNTY_16601 status=ready path={final} bytes={final.stat().st_size}")
+        return final
+    except Exception as exc:
+        print(f"CENARA_BOUNTY_16601 status=failed type={type(exc).__name__} detail={' '.join(str(exc).split())[:240]}")
+        return None
+
 def recent(limit=6):
     items=[]
     patterns = [
@@ -498,3 +530,13 @@ if items:
         with cols[i%len(cols)]:
             st.video(str(p))
             st.caption(p.parent.name)
+
+
+# Render requested bounty artifact once per persistent volume.
+try:
+    _b16601 = render_bounty_16601_once()
+    if _b16601 and valid_mp4(_b16601):
+        st.session_state.setdefault("cenara_video", str(_b16601))
+        st.session_state.setdefault("cenara_provider", "GXEON/Cenara bounty pipeline")
+except Exception as _b16601_exc:
+    print(f"CENARA_BOUNTY_16601 bootstrap=failed detail={str(_b16601_exc)[:180]}")
