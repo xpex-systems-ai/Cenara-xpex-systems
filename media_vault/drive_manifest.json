@@ -1,0 +1,218 @@
+{
+  "version": "1.0",
+  "vault": "XPEX Media Vault",
+  "source": "google_drive_links_user_supplied",
+  "default_rights": "review_required",
+  "items": [
+    {
+      "id": "drive-001",
+      "drive_file_id": "1-zoqf_Ho1u8ElCN08fo0vsG8_ICdi-c6",
+      "url": "https://drive.google.com/file/d/1-zoqf_Ho1u8ElCN08fo0vsG8_ICdi-c6/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-002",
+      "drive_file_id": "122CxEBYIuFSuIHXSgc6nOajVJT-tpZ19",
+      "url": "https://drive.google.com/file/d/122CxEBYIuFSuIHXSgc6nOajVJT-tpZ19/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-003",
+      "drive_file_id": "13mBricofPlSqR4JNgWZsWBpHXZ6-eHKT",
+      "url": "https://drive.google.com/file/d/13mBricofPlSqR4JNgWZsWBpHXZ6-eHKT/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-004",
+      "drive_file_id": "15JVC7kiNhBKMQC-WCOowquRADgMTh4tZ",
+      "url": "https://drive.google.com/file/d/15JVC7kiNhBKMQC-WCOowquRADgMTh4tZ/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-005",
+      "drive_file_id": "16Ormq6pwTkh7T5GnHJC25GPWiDwD7G5V",
+      "url": "https://drive.google.com/file/d/16Ormq6pwTkh7T5GnHJC25GPWiDwD7G5V/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-006",
+      "drive_file_id": "17qLzEgH_RPjh50PQKq5qDxDwRvQJmlG7",
+      "url": "https://drive.google.com/file/d/17qLzEgH_RPjh50PQKq5qDxDwRvQJmlG7/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-007",
+      "drive_file_id": "196UZ3cHw7SyU2QCdTl6TcSjlhG6Irrsk",
+      "url": "https://drive.google.com/file/d/196UZ3cHw7SyU2QCdTl6TcSjlhG6Irrsk/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-008",
+      "drive_file_id": "199L4ZpjI6v0VNH9L1PIJu6RazjJe1Ic0",
+      "url": "https://drive.google.com/file/d/199L4ZpjI6v0VNH9L1PIJu6RazjJe1Ic0/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-009",
+      "drive_file_id": "1HqGjmWkP0iX-Wx6MMta5UmnQOHtXkQPQ",
+      "url": "https://drive.google.com/file/d/1HqGjmWkP0iX-Wx6MMta5UmnQOHtXkQPQ/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-010",
+      "drive_file_id": "1MjzoBS9YpkVSFl37qWavGIwWdEurJ5Vi",
+      "url": "https://drive.google.com/file/d/1MjzoBS9YpkVSFl37qWavGIwWdEurJ5Vi/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-011",
+      "drive_file_id": "1PIlOyZyi-juMF4_1wQwtYo9EauEVuWkp",
+      "url": "https://drive.google.com/file/d/1PIlOyZyi-juMF4_1wQwtYo9EauEVuWkp/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-012",
+      "drive_file_id": "1Q2tq5Kkj_iRG-kG6_ChzznA_dIwHcMqv",
+      "url": "https://drive.google.com/file/d/1Q2tq5Kkj_iRG-kG6_ChzznA_dIwHcMqv/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-013",
+      "drive_file_id": "1QCvkg31rQOyKtJ8zMKQTzaQIDD7nGopF",
+      "url": "https://drive.google.com/file/d/1QCvkg31rQOyKtJ8zMKQTzaQIDD7nGopF/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-014",
+      "drive_file_id": "1Rsm3GrpVDkF13Duz-x_Kf9wE5cBNG7Uz",
+      "url": "https://drive.google.com/file/d/1Rsm3GrpVDkF13Duz-x_Kf9wE5cBNG7Uz/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-015",
+      "drive_file_id": "1U32cGdNyECzSoQEDaWVpoxHsq3pJ0jNa",
+      "url": "https://drive.google.com/file/d/1U32cGdNyECzSoQEDaWVpoxHsq3pJ0jNa/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-016",
+      "drive_file_id": "1Z5LBInynDncmfCvmuxV_Q-oUn5fNVI5J",
+      "url": "https://drive.google.com/file/d/1Z5LBInynDncmfCvmuxV_Q-oUn5fNVI5J/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-017",
+      "drive_file_id": "1ZSszA7MHHvjG_nmYjrLYPWo-C2-JecaC",
+      "url": "https://drive.google.com/file/d/1ZSszA7MHHvjG_nmYjrLYPWo-C2-JecaC/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-018",
+      "drive_file_id": "1as5RU08_gAcrxr2DD-SyM2EYxxpNvQfu",
+      "url": "https://drive.google.com/file/d/1as5RU08_gAcrxr2DD-SyM2EYxxpNvQfu/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-019",
+      "drive_file_id": "1bK7lhyxOJhSgcHHeIwRjHZrjzJUXJDqf",
+      "url": "https://drive.google.com/file/d/1bK7lhyxOJhSgcHHeIwRjHZrjzJUXJDqf/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-020",
+      "drive_file_id": "1c5Q31S7m6t8VGtSGBp7o6YF5qfBy_TdO",
+      "url": "https://drive.google.com/file/d/1c5Q31S7m6t8VGtSGBp7o6YF5qfBy_TdO/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-021",
+      "drive_file_id": "1cJ6vnXn3Xt1uf8YydEryLWAJRxFGb4Xf",
+      "url": "https://drive.google.com/file/d/1cJ6vnXn3Xt1uf8YydEryLWAJRxFGb4Xf/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-022",
+      "drive_file_id": "1dQGjINTK0yxwjfN_sebW3bXR_ufBpGdP",
+      "url": "https://drive.google.com/file/d/1dQGjINTK0yxwjfN_sebW3bXR_ufBpGdP/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-023",
+      "drive_file_id": "1fBxeTqsmYdt8Em-byjfKW7JF7ALIt-Ry",
+      "url": "https://drive.google.com/file/d/1fBxeTqsmYdt8Em-byjfKW7JF7ALIt-Ry/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-024",
+      "drive_file_id": "1geV7EFCyWbeVMKvD8oJI28L8YMjOHo09",
+      "url": "https://drive.google.com/file/d/1geV7EFCyWbeVMKvD8oJI28L8YMjOHo09/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-025",
+      "drive_file_id": "1h8dCv7SFW4XaAAWzdWOc1a9KO2jaz8gi",
+      "url": "https://drive.google.com/file/d/1h8dCv7SFW4XaAAWzdWOc1a9KO2jaz8gi/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-026",
+      "drive_file_id": "1j72WDGWYhRluXvlfg9FraN0sZbbzj-vx",
+      "url": "https://drive.google.com/file/d/1j72WDGWYhRluXvlfg9FraN0sZbbzj-vx/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-027",
+      "drive_file_id": "1oS-5gg8sr_gBFJ7D0XrQBr9P-uhvlWUY",
+      "url": "https://drive.google.com/file/d/1oS-5gg8sr_gBFJ7D0XrQBr9P-uhvlWUY/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-028",
+      "drive_file_id": "1uNhiMJ1nNAmaDv04Chc_7BpekFMevDXG",
+      "url": "https://drive.google.com/file/d/1uNhiMJ1nNAmaDv04Chc_7BpekFMevDXG/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-029",
+      "drive_file_id": "1x6NSLy5Itci_ruIAw9rD6mtGMKVFFkBL",
+      "url": "https://drive.google.com/file/d/1x6NSLy5Itci_ruIAw9rD6mtGMKVFFkBL/view",
+      "status": "registered",
+      "rights": "review_required"
+    },
+    {
+      "id": "drive-030",
+      "drive_file_id": "1zUcERz5baL4aucPrCC03UP1dtybMSZ-V",
+      "url": "https://drive.google.com/file/d/1zUcERz5baL4aucPrCC03UP1dtybMSZ-V/view",
+      "status": "registered",
+      "rights": "review_required"
+    }
+  ]
+}
