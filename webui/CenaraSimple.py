@@ -22,6 +22,7 @@ from app.services.academy_agent import AcademyAgentError, run_academy_agent
 from app.services.academy_handoff import build_handoff, validate_handoff
 from app.services.open_video_router import OpenVideoRouterError, generate_open_video, configured_models
 from app.services.avatar_router import configured_avatar_engines
+from app.services.media_vault import registered_sources
 
 STORAGE = ROOT / "storage"
 TASKS = STORAGE / "tasks"
@@ -415,7 +416,22 @@ def recent(limit=6):
 st.markdown('<div class="cz-top"><div class="cz-brand"><span>▶</span> CENARA</div><div class="cz-pills">' + ''.join('<span class="cz-pill">● '+x+'</span>' for x in badges) + '</div></div>', unsafe_allow_html=True)
 st.markdown('<div class="cz-hero"><h1>Estúdio de Aulas<br><span style="color:#19d3f3">XPeX Academy.</span></h1><p>Crie aulas em blocos de 3 ou 4 minutos com roteiro, voz, master 1080p, vídeo documental cinematográfico, cortes profissionais, professor e B-roll e MP4 pronto para publicar no curso.</p></div>', unsafe_allow_html=True)
 
-mode = st.radio("Modo de produção", ["Aula XPeX Academy", "Vídeo livre"], horizontal=True, label_visibility="collapsed")
+mode = st.radio("Modo de produção", ["Aula XPeX Academy", "Vídeo livre", "XPEX Media Vault"], horizontal=True, label_visibility="collapsed")
+
+vault_items = registered_sources()
+if mode == "XPEX Media Vault":
+    st.markdown('<div class="cz-card"><h2>XPEX Media Vault</h2><p style="color:#93a4b8">Memória audiovisual registrada para a Cenara. Os links entram como referência e só podem ser reutilizados comercialmente após revisão de direitos.</p></div>', unsafe_allow_html=True)
+    a,b,c1=st.columns(3)
+    with a: st.metric("Fontes registradas", len(vault_items))
+    with b: st.metric("Aprovadas para uso", sum(1 for x in vault_items if x.get("rights") in ["XPEX_OWNED","CLIENT_AUTHORIZED"]))
+    with c1: st.metric("A revisar", sum(1 for x in vault_items if x.get("rights")=="review_required"))
+    q=st.text_input("Buscar no Vault", placeholder="Ex.: academy, construção, reel, tecnologia")
+    shown=[x for x in vault_items if not q.strip() or q.lower() in json.dumps(x,ensure_ascii=False).lower()]
+    for item in shown[:50]:
+        st.markdown(f"**{item.get('id','-')}** · status: \`{item.get('status','registered')}\` · direitos: \`{item.get('rights','review_required')}\`")
+        st.caption(item.get("url",""))
+    st.info("Próxima camada: importação autorizada → análise por cenas → tags/embeddings → busca semântica → montagem automática.")
+    st.stop()
 
 left,right=st.columns([1.2,1],gap="large")
 with left:
