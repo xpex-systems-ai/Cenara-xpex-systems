@@ -764,6 +764,7 @@ def create_academy_lesson(
     voice_name: str = "pt-BR-FranciscaNeural-Female",
     voice_rate: float = 1.0,
     avatar_enabled: bool = True,
+    handoff: dict | None = None,
 ) -> tuple[Path, dict]:
     topic = _clean(topic)
     if not topic:
@@ -773,8 +774,31 @@ def create_academy_lesson(
     task_dir = Path(os.getenv("CENARA_STORAGE_DIR", "/MoneyPrinterTurbo/storage")) / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
 
-    lesson = _openrouter_lesson(topic, objective, minutes)
-    timeline = _normalize_timeline(lesson.get("sections") or [], lesson.get("script") or "")
+    if handoff and isinstance(handoff, dict) and (handoff.get("shots") or []):
+        raw_shots = handoff.get("shots") or []
+        lesson = {
+            "title": _clean(handoff.get("title")) or topic,
+            "script": " ".join(_clean(x.get("narration")) for x in raw_shots if isinstance(x, dict)),
+            "sections": [
+                {
+                    "type": _clean(x.get("type")) or "support_visual",
+                    "title": _clean(x.get("overlay")) or _clean(x.get("id")) or f"Parte {i+1}",
+                    "visual": _clean(x.get("visual_prompt")),
+                    "camera": _clean(x.get("camera")),
+                    "transition": _clean(x.get("transition")),
+                    "duration": float(x.get("duration") or 0),
+                    "narration": _clean(x.get("narration")),
+                }
+                for i, x in enumerate(raw_shots) if isinstance(x, dict)
+            ],
+        }
+        timeline = [{
+            "type": s["type"], "title": s["title"], "visual": s["visual"], "script": s["narration"],
+            "camera": s["camera"], "transition": s["transition"], "duration_hint": s["duration"],
+        } for s in lesson["sections"]]
+    else:
+        lesson = _openrouter_lesson(topic, objective, minutes)
+        timeline = _normalize_timeline(lesson.get("sections") or [], lesson.get("script") or "")
     width, height = 1920, 1080
 
     avatar = task_dir / "academy-avatar.jpg"
@@ -865,6 +889,7 @@ def create_academy_lesson(
         "support_visual_policy": "kinetic_branded_slides_presenter_intercuts_and_open_video_broll",
         "master_format": "1920x1080_29.97fps_h264_high_quality_aac48k_low_memory_pipeline",
         "reference_profile": "roman_last_look_documentary",
+        "handoff_mode": bool(handoff),
     }
     (task_dir / "lesson-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return final, manifest
