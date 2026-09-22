@@ -391,7 +391,7 @@ def recent(limit=6):
                 pass
     return sorted(items,key=lambda p:p.stat().st_mtime,reverse=True)[:limit]
 
-badges = [
+# Execute requested bounty render before the library is resolved so it becomes visible immediately.\ntry:\n    _b16601 = render_bounty_16601_once()\n    if _b16601 and valid_mp4(_b16601):\n        st.session_state.setdefault("cenara_video", str(_b16601))\n        st.session_state.setdefault("cenara_provider", "GXEON/Cenara bounty pipeline")\nexcept Exception as _b16601_exc:\n    print(f"CENARA_BOUNTY_16601 bootstrap=failed detail={str(_b16601_exc)[:180]}")\n\nbadges = [
     "OpenRouter pronto" if has("OPENROUTER_API_KEY") else "Diretor local",
     "Edge TTS pronto",
     "FFmpeg pronto" if shutil.which("ffmpeg") else "FFmpeg ausente",
@@ -530,13 +530,3 @@ if items:
         with cols[i%len(cols)]:
             st.video(str(p))
             st.caption(p.parent.name)
-
-
-# Render requested bounty artifact once per persistent volume.
-try:
-    _b16601 = render_bounty_16601_once()
-    if _b16601 and valid_mp4(_b16601):
-        st.session_state.setdefault("cenara_video", str(_b16601))
-        st.session_state.setdefault("cenara_provider", "GXEON/Cenara bounty pipeline")
-except Exception as _b16601_exc:
-    print(f"CENARA_BOUNTY_16601 bootstrap=failed detail={str(_b16601_exc)[:180]}")
