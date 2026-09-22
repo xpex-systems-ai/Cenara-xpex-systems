@@ -349,11 +349,11 @@ BOUNTY_16601_SCRIPT = """What stops someone from spinning up a thousand virtual 
 
 def render_bounty_16601_once():
     if os.getenv("CENARA_BOUNTY_16601_GENERATE_ON_START","false").lower() != "true": return None
-    task_dir = TASKS / "bounty-16601-final"
+    task_dir = TASKS / "bounty-16601-final-v2"
     task_dir.mkdir(parents=True, exist_ok=True)
-    final = task_dir / "xpex-bounty-16601-final.mp4"
+    final = task_dir / "xpex-bounty-16601-final-v2.mp4"
     if valid_mp4(final):
-        print(f"CENARA_BOUNTY_16601 status=ready path={final} bytes={final.stat().st_size}")
+        print(f"CENARA_BOUNTY_16601_V2 status=ready path={final} bytes={final.stat().st_size}")
         return final
     audio = task_dir / "voice.mp3"
     try:
@@ -363,17 +363,30 @@ def render_bounty_16601_once():
             q=subprocess.run([probe,"-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1",str(audio)],capture_output=True,text=True,timeout=20)
             try: duration=max(45.0,min(59.0,float(q.stdout.strip())+0.4))
             except Exception: pass
-        visual_prompt=("Vertical 9:16 technical cinematic explainer about RustChain Proof-of-Antiquity, physical vintage computer versus multiplying virtual machines, hardware fingerprint scanner, signed attestation pipeline, one CPU one vote diagram, anti-emulation shield, reward meter collapsing for synthetic VM, original generated graphics, dark futuristic interface, cyan and orange highlights, no logos, no watermark")
+        # Structured visual handoff: every shot must communicate the technical claim, not generic cyber imagery.
+        handoff={
+          "format":"9:16 vertical, premium photoreal cinematic documentary, crisp HD, physically plausible light, shallow depth of field, subtle film grain, no gibberish text, no watermark",
+          "negative":"generic server-room loops, four-quadrant abstract panels, random UI, illegible typography, duplicated objects, distorted computers, fake logos, stock-footage look",
+          "shots":[
+            {"t":"0-7","prompt":"hero macro shot of one authentic late-1990s beige desktop computer on a dark workbench, real motherboard and CPU visible, opposite side a translucent wall of identical virtual-machine windows multiplying into the distance, dramatic cyan rim light and warm orange practical light, visual contrast physical versus virtual"},
+            {"t":"7-17","prompt":"close cinematic hardware attestation sequence: camera glides across physical motherboard, CPU package, RAM and firmware chip while precise luminous fingerprint rings scan the components; clean data particles converge into one signed digital attestation token, no readable fake text"},
+            {"t":"17-29","prompt":"clear educational visualization integrated into a realistic lab: one physical CPU at center connected to exactly one voting node, then three distinct verification layers appear as icons: physical hardware presence, age/antiquity timeline, fingerprint confidence shield; premium documentary motion graphics"},
+            {"t":"29-41","prompt":"anti-emulation test: rows of synthetic virtual machines attempt to pass through a luminous hardware verification gate; suspicious VM instances turn dim and their reward meters visibly collapse while one verified physical vintage computer remains bright and trusted, no invented numeric multiplier"},
+            {"t":"41-55","prompt":"final hero shot of verified vintage computer with subtle fingerprint halo and shield, physical silicon highlighted, virtual machines fading into darkness behind it; elegant cinematic end frame with empty safe title area, confident technical documentary finish"}
+          ]
+        }
+        (task_dir/"visual-handoff.json").write_text(json.dumps(handoff,ensure_ascii=False,indent=2),encoding="utf-8")
+        visual_prompt=("Create a coherent five-shot vertical technical documentary, not an abstract montage. "+handoff["format"]+". Sequence: "+ " THEN ".join(x["prompt"] for x in handoff["shots"]) + ". Avoid: "+handoff["negative"])
         visual=storyboard_video(task_dir,visual_prompt,"9:16",int(duration)+1)
         if not visual or not valid_mp4(visual): visual=local_video(task_dir,visual_prompt,"9:16",int(duration)+1)
         ffmpeg=shutil.which("ffmpeg")
-        subprocess.run([ffmpeg,"-y","-i",str(visual),"-i",str(audio),"-map","0:v:0","-map","1:a:0","-c:v","libx264","-preset","veryfast","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(final)],check=True,capture_output=True,text=True,timeout=300)
-        if not valid_mp4(final): raise RuntimeError("final mp4 invalid")
-        (task_dir/"manifest.json").write_text(json.dumps({"bounty":16601,"package":"C","format":"9:16","script":"bounties/16601/package-c-vm-fingerprint/script.md","sources":"bounties/16601/package-c-vm-fingerprint/SOURCES.md","human_review_required_before_submission":True},indent=2),encoding="utf-8")
-        print(f"CENARA_BOUNTY_16601 status=ready path={final} bytes={final.stat().st_size}")
+        subprocess.run([ffmpeg,"-y","-i",str(visual),"-i",str(audio),"-map","0:v:0","-map","1:a:0","-c:v","libx264","-preset","veryfast","-crf","18","-c:a","aac","-b:a","192k","-shortest","-movflags","+faststart",str(final)],check=True,capture_output=True,text=True,timeout=300)
+        if not valid_mp4(final): raise RuntimeError("final v2 mp4 invalid")
+        (task_dir/"manifest.json").write_text(json.dumps({"bounty":16601,"package":"C","version":"V2","format":"9:16","visual_standard":"premium photoreal technical documentary","script":"bounties/16601/package-c-vm-fingerprint/script.md","sources":"bounties/16601/package-c-vm-fingerprint/SOURCES.md","human_review_required_before_submission":True},indent=2),encoding="utf-8")
+        print(f"CENARA_BOUNTY_16601_V2 status=ready path={final} bytes={final.stat().st_size}")
         return final
     except Exception as exc:
-        print(f"CENARA_BOUNTY_16601 status=failed type={type(exc).__name__} detail={' '.join(str(exc).split())[:240]}")
+        print(f"CENARA_BOUNTY_16601_V2 status=failed type={type(exc).__name__} detail={' '.join(str(exc).split())[:240]}")
         return None
 
 def recent(limit=6):
