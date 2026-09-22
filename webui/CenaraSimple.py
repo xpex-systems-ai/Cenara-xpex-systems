@@ -18,6 +18,8 @@ if str(ROOT) not in os.sys.path:
 
 from app.services.frontier_media import FrontierMediaError, generate_huggingface_video_file
 from app.services.academy_lesson import AcademyLessonError, create_academy_lesson
+from app.services.academy_agent import AcademyAgentError, run_academy_agent
+from app.services.academy_handoff import build_handoff, validate_handoff
 from app.services.open_video_router import OpenVideoRouterError, generate_open_video, configured_models
 from app.services.avatar_router import configured_avatar_engines
 
@@ -363,7 +365,7 @@ badges = [
     "FFmpeg pronto" if shutil.which("ffmpeg") else "FFmpeg ausente",
     ("Open Video Ultra: " + str(len(configured_models())) + " motores" if configured_models() else "Open Video Ultra: fallback ativo"),
     ("Avatar Ultra: " + str(len(configured_avatar_engines())) + " motores" if configured_avatar_engines() else "Avatar Ultra: fallback ativo"),
-    "XPeX Roman Master Engine",
+    "Cenara Agentic Academy",
 ]
 st.markdown('<div class="cz-top"><div class="cz-brand"><span>▶</span> CENARA</div><div class="cz-pills">' + ''.join('<span class="cz-pill">● '+x+'</span>' for x in badges) + '</div></div>', unsafe_allow_html=True)
 st.markdown('<div class="cz-hero"><h1>Estúdio de Aulas<br><span style="color:#19d3f3">XPeX Academy.</span></h1><p>Crie aulas em blocos de 3 ou 4 minutos com roteiro, voz, master 1080p, vídeo documental cinematográfico, cortes profissionais, professor e B-roll e MP4 pronto para publicar no curso.</p></div>', unsafe_allow_html=True)
@@ -373,7 +375,7 @@ mode = st.radio("Modo de produção", ["Aula XPeX Academy", "Vídeo livre"], hor
 left,right=st.columns([1.2,1],gap="large")
 with left:
     if mode == "Aula XPeX Academy":
-        st.markdown('<div class="cz-card"><h2>Criar aula</h2><p style="color:#93a4b8">Digite o tema. A Cenara monta uma microaula pronta para o curso.</p></div>',unsafe_allow_html=True)
+        st.markdown('<div class="cz-card"><h2>Criar aula</h2><p style="color:#93a4b8">Descreva a aula. A agente cria um handoff profissional e executa a produção.</p></div>',unsafe_allow_html=True)
         topic=st.text_area("Tema da aula",height=150,placeholder="Ex.: Fundamentos de Inteligência Artificial — diferença entre IA, Machine Learning e IA Generativa.")
         objective=st.text_input("Objetivo da aula",placeholder="Ex.: Fazer o aluno entender os conceitos e reconhecer exemplos práticos.")
         a,b,c=st.columns(3)
@@ -386,7 +388,8 @@ with left:
             ], format_func=lambda x:"Professora IA" if "Francisca" in x else "Professor IA")
         with c:
             avatar_enabled=st.selectbox("Avatar",["Com avatar","Sem avatar"])=="Com avatar"
-        go_academy=st.button("🎓 Gerar aula XPeX agora",use_container_width=True,type="primary",disabled=not topic.strip())
+        handoff_preview=st.button("🧠 Criar handoff",use_container_width=True,disabled=not topic.strip())
+        go_academy=st.button("🎓 Executar handoff e gerar aula",use_container_width=True,type="primary",disabled=not topic.strip())
         st.markdown('<div class="cz-steps"><div class="cz-step"><b>01 · Tema</b><small>Objetivo pedagógico</small></div><div class="cz-step"><b>02 · Roteiro</b><small>Diretor XPeX</small></div><div class="cz-step"><b>03 · Aula</b><small>Wan/LTX + professor + gráficos</small></div><div class="cz-step"><b>04 · MP4</b><small>Pronto para publicar</small></div></div>',unsafe_allow_html=True)
     else:
         st.markdown('<div class="cz-card"><h2>Criar vídeo</h2><p style="color:#93a4b8">Descreva exatamente o vídeo que você quer.</p></div>',unsafe_allow_html=True)
@@ -404,20 +407,40 @@ with left:
 with right:
     st.markdown('<div class="cz-card"><h2>Prévia</h2><p style="color:#93a4b8">O resultado aparece aqui.</p></div>',unsafe_allow_html=True)
 
+if mode == "Aula XPeX Academy" and handoff_preview:
+    try:
+        from dataclasses import asdict
+        h = build_handoff(topic, objective, minutes, academy_voice)
+        errors = validate_handoff(h)
+        payload = json.dumps(asdict(h), ensure_ascii=False, indent=2)
+        st.session_state["cenara_handoff_preview"] = payload
+        if errors:
+            st.warning("Handoff criado com alertas: " + "; ".join(errors))
+        else:
+            st.success("Handoff estruturado e validado.")
+    except Exception as exc:
+        st.error("Falha ao criar handoff: " + (str(exc) or type(exc).__name__))
+
+if st.session_state.get("cenara_handoff_preview"):
+    with st.expander("Handoff estruturado", expanded=False):
+        st.code(st.session_state["cenara_handoff_preview"], language="json")
+        st.download_button("Baixar handoff JSON", data=st.session_state["cenara_handoff_preview"], file_name="xpex-academy-handoff.json", mime="application/json")
+
 if mode == "Aula XPeX Academy" and go_academy:
     with st.status("Cenara está produzindo a aula...",expanded=True) as status:
         try:
-            st.write("Escrevendo roteiro pedagógico...")
-            st.write("Gerando narração...")
-            st.write("Motor oficial ativo: gerando vídeo real + professor + gráficos...")
-            output, manifest = create_academy_lesson(
+            st.write("Agente criando handoff estruturado...")
+            st.write("Validando shots, câmera, narração e qualidade...")
+            st.write("Roteando motores de vídeo e avatar...")
+            st.write("Produzindo master da aula...")
+            output, manifest, handoff_path = run_academy_agent(
                 topic=topic,
                 objective=objective,
                 minutes=minutes,
-                voice_name=academy_voice,
-                voice_rate=1.0,
+                voice=academy_voice,
                 avatar_enabled=avatar_enabled,
             )
+            st.session_state["cenara_handoff_path"] = str(handoff_path)
             if not valid_mp4(output):
                 raise RuntimeError("MP4 de aula inválido")
             st.session_state["cenara_video"]=str(output)
